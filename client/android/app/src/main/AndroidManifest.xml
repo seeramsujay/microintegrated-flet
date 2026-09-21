@@ -17,6 +17,8 @@
     <!-- Google TV -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <!-- USB Host / OTG Serial -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
     <application
         android:label="flet_client"

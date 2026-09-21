@@ -128,6 +128,7 @@ import 'services/screen_brightness.dart';
 import 'services/storage_paths.dart';
 import 'services/tester.dart';
 import 'services/url_launcher.dart';
+import 'services/usb_serial.dart';
 import 'services/wakelock.dart';
 import 'services/window.dart';
 import 'services/user_accelerometer.dart';
@@ -430,6 +431,8 @@ class FletCoreExtension extends FletExtension {
         return UserAccelerometerService(control: control);
       case "UrlLauncher":
         return UrlLauncherService(control: control);
+      case "UsbSerial":
+        return UsbSerialService(control: control);
       case "Wakelock":
         return WakelockService(control: control);
       default:
