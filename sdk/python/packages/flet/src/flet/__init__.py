@@ -731,9 +731,49 @@ if TYPE_CHECKING:
     )
     from flet.pubsub.pubsub_client import PubSubClient
     from flet.pubsub.pubsub_hub import PubSubHub
+    from flet.controls.hardware.device_selector import DeviceSelector
+    from flet.controls.hardware.flash_progress import FlashProgress
+    from flet.controls.hardware.serial_console import SerialConsole
+    from flet.controls.services.usb_serial import (
+        UsbSerial,
+        UsbSerialDataEvent,
+        UsbSerialDeviceEvent,
+    )
+    from flet.hardware import (
+        AsyncSerial,
+        ESP32Flasher,
+        FirmwareFlasher,
+        FlashProgressUpdate,
+        Parity,
+        RP2040Flasher,
+        SerialPortInfo,
+        StopBits,
+        create_serial_connection,
+        detect_uf2_drives,
+        flash_firmware,
+        list_serial_ports,
+    )
 
 
 __all__ = [
+    "AsyncSerial",
+    "DeviceSelector",
+    "ESP32Flasher",
+    "FirmwareFlasher",
+    "FlashProgress",
+    "FlashProgressUpdate",
+    "Parity",
+    "RP2040Flasher",
+    "SerialConsole",
+    "SerialPortInfo",
+    "StopBits",
+    "UsbSerial",
+    "UsbSerialDataEvent",
+    "UsbSerialDeviceEvent",
+    "create_serial_connection",
+    "detect_uf2_drives",
+    "flash_firmware",
+    "list_serial_ports",
     "Accelerometer",
     "AccelerometerReadingEvent",
     "ActionControl",
@@ -1274,6 +1314,24 @@ __all__ = [
 
 # Generated: exported name -> module that defines it.
 _LAZY = {
+    "AsyncSerial": "flet.hardware.serial",
+    "DeviceSelector": "flet.controls.hardware.device_selector",
+    "ESP32Flasher": "flet.hardware.flasher",
+    "FirmwareFlasher": "flet.hardware.flasher",
+    "FlashProgress": "flet.controls.hardware.flash_progress",
+    "FlashProgressUpdate": "flet.hardware.flasher",
+    "Parity": "flet.hardware.serial",
+    "RP2040Flasher": "flet.hardware.flasher",
+    "SerialConsole": "flet.controls.hardware.serial_console",
+    "SerialPortInfo": "flet.hardware.serial",
+    "StopBits": "flet.hardware.serial",
+    "UsbSerial": "flet.controls.services.usb_serial",
+    "UsbSerialDataEvent": "flet.controls.services.usb_serial",
+    "UsbSerialDeviceEvent": "flet.controls.services.usb_serial",
+    "create_serial_connection": "flet.hardware.serial",
+    "detect_uf2_drives": "flet.hardware.flasher",
+    "flash_firmware": "flet.hardware.flasher",
+    "list_serial_ports": "flet.hardware.serial",
     "Accelerometer": "flet.controls.services.accelerometer",
     "AccelerometerReadingEvent": "flet.controls.services.accelerometer",
     "ActionControl": "flet.controls.action_control",
