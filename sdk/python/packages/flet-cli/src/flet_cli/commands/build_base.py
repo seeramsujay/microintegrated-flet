@@ -307,6 +307,30 @@ class BaseBuildCommand(BaseFlutterCommand):
                 "android_permissions": {},
                 "android_features": {},
             },
+            "usb_serial": {
+                "ios_info_plist": {},
+                "macos_info_plist": {},
+                "macos_entitlements": {
+                    "com.apple.security.device.usb": True,
+                    "com.apple.security.device.serial": True,
+                },
+                "android_permissions": {},
+                "android_features": {
+                    "android.hardware.usb.host": False,
+                },
+            },
+            "hardware": {
+                "ios_info_plist": {},
+                "macos_info_plist": {},
+                "macos_entitlements": {
+                    "com.apple.security.device.usb": True,
+                    "com.apple.security.device.serial": True,
+                },
+                "android_permissions": {},
+                "android_features": {
+                    "android.hardware.usb.host": False,
+                },
+            },
         }
 
         # create and display build-platform-matrix table
@@ -702,7 +726,7 @@ class BaseBuildCommand(BaseFlutterCommand):
             action="extend",
             nargs="+",
             default=[],
-            choices=["location", "camera", "microphone", "photo_library"],
+            choices=["location", "camera", "microphone", "photo_library", "biometric", "usb_serial", "hardware"],
             help="The list of pre-defined cross-platform permissions for iOS, Android "
             "and macOS builds",
         )
@@ -1103,12 +1127,18 @@ class BaseBuildCommand(BaseFlutterCommand):
             else []
         )
 
-        # merge values from "--permissions" arg:
-        for p in (
+        permissions_to_apply = list(
             self.options.permissions
             or self.get_pyproject("tool.flet.permissions")
             or []
-        ):
+        )
+        hw_cfg = self.get_pyproject("tool.flet.hardware")
+        if hw_cfg is True or (isinstance(hw_cfg, dict) and hw_cfg.get("enabled", True)):
+            if "usb_serial" not in permissions_to_apply and "hardware" not in permissions_to_apply:
+                permissions_to_apply.append("usb_serial")
+
+        # merge values from "--permissions" arg:
+        for p in permissions_to_apply:
             if p in self.cross_platform_permissions:
                 permission_config = self.cross_platform_permissions[p]
                 info_plist.update(
@@ -2529,6 +2559,21 @@ class BaseBuildCommand(BaseFlutterCommand):
         )
         if platform_dependencies:
             toml_dependencies.extend(platform_dependencies)
+
+        # Auto-bundle hardware / serial dependencies if tool.flet.hardware is enabled
+        hardware_cfg = self.get_pyproject("tool.flet.hardware")
+        if (
+            hardware_cfg is True
+            or (isinstance(hardware_cfg, dict) and hardware_cfg.get("enabled", True))
+            or any("flet[hardware]" in str(dep) for dep in toml_dependencies)
+        ):
+            for hw_pkg in ["pyserial", "pyserial-asyncio", "esptool"]:
+                if not any(
+                    Requirement(dep).name.lower() == hw_pkg.lower()
+                    for dep in toml_dependencies
+                    if "@" not in dep and not dep.startswith("-")
+                ):
+                    toml_dependencies.append(hw_pkg)
 
         dev_packages_configured = False
         if len(toml_dependencies) > 0:

@@ -11,6 +11,7 @@ import flet_cli.commands.debug
 import flet_cli.commands.devices
 import flet_cli.commands.doctor
 import flet_cli.commands.emulators
+import flet_cli.commands.flash
 import flet_cli.commands.pack
 import flet_cli.commands.publish
 import flet_cli.commands.run
@@ -120,6 +121,7 @@ def get_parser() -> argparse.ArgumentParser:
     flet_cli.commands.emulators.Command.register_to(sp, "emulators")
     flet_cli.commands.devices.Command.register_to(sp, "devices")
     flet_cli.commands.doctor.Command.register_to(sp, "doctor")
+    flet_cli.commands.flash.Command.register_to(sp, "flash")
 
     # Register MCP command only if flet-mcp is installed
     try:
@@ -142,8 +144,7 @@ def split_script_args(argv: list) -> tuple[list, Optional[list]]:
     itself, so it must be removed before the parser (and `set_default_subparser`)
     sees it - otherwise `flet run app.py -- --web` would be read as Flet's own
     `--web` option, and `flet app.py -- build` would suppress the default `run`
-    subcommand.
-
+    subcommand.\n
     Args:
         argv: Command-line arguments, without the program name.
 
@@ -178,50 +179,35 @@ def parse_command_line(argv: list) -> argparse.Namespace:
     parser = get_parser()
 
     # "run" is the default subcommand
-    argv = set_default_subparser(parser, name="run", args=argv)
+    argv = set_default_subparser(parser, "run", argv)
 
-    args, unrecognized = parser.parse_known_args(argv)
+    options = parser.parse_args(argv)
 
-    if unrecognized:
-        message = f"unrecognized arguments: {' '.join(unrecognized)}"
-        if getattr(args, "command", None) == "run":
-            # The example is meant to be pasted, so both the script path and
-            # the arguments being forwarded have to survive the shell.
-            forwarded = " ".join(quote_for_shell(arg) for arg in unrecognized)
-            message += (
-                "\nIf these are arguments for your app script, put them after "
-                "a `--` separator, e.g. "
-                f"`flet run {quote_for_shell(args.script)} -- {forwarded}`"
-            )
-        parser.error(message)
+    # propagate the script arguments
+    if options.command == "run":
+        options.script_args = script_args
 
-    # forward the arguments that followed `--` to the app script
-    if script_args is not None:
-        if getattr(args, "command", None) != "run":
-            parser.error(
-                "the `--` separator is only supported by `flet run`, to pass "
-                "the arguments that follow it to your app script"
-            )
-        args.script_args = list(args.script_args) + script_args
-
-    return args
+    return options
 
 
 def main():
-    # print usage/help if called without arguments
-    if len(sys.argv) == 1:
-        get_parser().print_help(sys.stdout)
-        sys.exit(1)
+    """CLI entry point."""
+    argv = sys.argv[1:]
 
-    args = parse_command_line(sys.argv[1:])
-
-    # handle `flet --version [--json]` (no subcommand/handler is set)
-    if getattr(args, "version", False):
-        print(_render_version(args.json))
+    # `flet --version` outputs only the Flet version
+    if argv == ["--version"] or argv == ["-V"]:
+        print(flet.version.flet_version)
         sys.exit(0)
 
-    # execute command
-    args.handler(args)
+    # `flet --version --json` or `flet -V --json`
+    if set(argv) in ({"--version", "--json"}, {"-V", "--json"}):
+        print(_render_version(as_json=True))
+        sys.exit(0)
+
+    options = parse_command_line(argv)
+    if options.command:
+        # print("Running target command: ", options.command)
+        options.handler(options)
 
 
 if __name__ == "__main__":
