@@ -32,6 +32,11 @@ desktop = [
     "flet-desktop",
 ]
 web = ["flet-web"]
+hardware = [
+    "pyserial >=3.5; platform_system != 'Emscripten'",
+    "pyserial-asyncio >=0.6; platform_system != 'Emscripten'",
+    "esptool >=4.5.0; platform_system != 'Emscripten'",
+]
 # Dependencies needed to run integration tests written with `flet.testing`
 # (the `flet test` command / the pytest plugin). Pillow/numpy/scikit-image
 # back screenshot and GIF comparison.
@@ -97,16 +102,4 @@ docs = [
 all = [
     { include-group = 'dev' },
     { include-group = 'docs' },
-]
-
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools.package-data]
-flet = [
-    "controls/material/icons.json",
-    "controls/material/icons.pyi",
-    "controls/cupertino/cupertino_icons.json",
-    "controls/cupertino/cupertino_icons.pyi",
 ]
