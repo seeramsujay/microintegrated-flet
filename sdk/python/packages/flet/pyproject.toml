@@ -50,6 +50,7 @@ test = [
 
 [project.scripts]
 flet = "flet.cli:main"
+uflet = "flet.cli:main"
 
 [project.entry-points.pytest11]
 flet = "flet.pytest_plugin"

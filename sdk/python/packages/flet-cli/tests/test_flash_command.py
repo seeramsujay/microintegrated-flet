@@ -123,3 +123,14 @@ def test_flash_execute_rp2040(tmp_path):
         mock_flash.return_value = True
         options.handler(options)
         mock_flash.assert_called_once()
+
+
+def test_flash_doctor_flag(capsys):
+    """Test executing flet flash with --doctor flag."""
+    parser = get_parser()
+    options = parser.parse_args(["flash", "--doctor"])
+
+    options.handler(options)
+    captured = capsys.readouterr()
+    assert "Hardware Health Check & Diagnostics" in captured.out
+    assert "Active Support" in captured.out

@@ -37,3 +37,26 @@ class Command(BaseCommand):
         console.print(f"Python {platform.python_version()} ({sys.executable})")
 
         # TODO: output Flutter version, if installed
+        # μFlet Microcontroller & Hardware Health Check
+        try:
+            import uflet
+
+            hw_report = uflet.doctor(verbose=verbose)
+            deps = hw_report.get("dependencies", {})
+            installed_deps = [k for k, v in deps.items() if v]
+            if len(installed_deps) == len(deps):
+                console.print(
+                    "μFlet Hardware Suite: [green]Ready[/green] (pyserial, pyserial-asyncio, esptool)"
+                )
+            else:
+                missing = [k for k, v in deps.items() if not v]
+                console.print(
+                    f"μFlet Hardware Suite: [yellow]Optional dependencies missing: {', '.join(missing)}[/yellow]"
+                )
+            ports = hw_report.get("devices", {}).get("serial_ports", [])
+            if ports:
+                console.print(
+                    f"  • Connected Microcontrollers / Ports: {len(ports)} detected"
+                )
+        except Exception:
+            pass

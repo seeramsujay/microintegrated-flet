@@ -22,6 +22,10 @@ dependencies = [
 [project.optional-dependencies]
 mcp = ["flet-mcp"]
 
+[project.scripts]
+flet = "flet_cli.cli:main"
+uflet = "flet_cli.cli:main"
+
 [project.urls]
 Homepage = "https://flet.dev"
 Repository = "https://github.com/flet-dev/flet"

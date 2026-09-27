@@ -92,6 +92,14 @@ class Command(BaseCommand):
             help="Erase all flash memory sectors prior to programming.",
         )
         parser.add_argument(
+            "-d",
+            "--doctor",
+            dest="doctor",
+            action="store_true",
+            default=False,
+            help="Run μFlet hardware health check and diagnostics.",
+        )
+        parser.add_argument(
             "-l",
             "--list-ports",
             dest="list_ports",
@@ -108,6 +116,11 @@ class Command(BaseCommand):
         )
 
     def handle(self, options: argparse.Namespace) -> None:
+        # Handle doctor diagnostics
+        if options.doctor:
+            self._print_doctor()
+            return
+
         # Handle port listing
         if options.list_ports:
             self._print_ports_table()
@@ -143,6 +156,80 @@ class Command(BaseCommand):
             if options.verbose:
                 console.print_exception()
             sys.exit(1)
+
+    def _print_doctor(self) -> None:
+        try:
+            import uflet
+
+            report = uflet.doctor(verbose=True)
+        except Exception as e:
+            console.print(f"[bold red]Failed to load μFlet doctor:[/bold red] {e}")
+            return
+
+        table = Table(
+            title="μFlet Hardware Health Check & Diagnostics",
+            show_lines=True,
+            header_style="bold cyan",
+        )
+        table.add_column("Subsystem", style="bold green")
+        table.add_column("Status / Version", style="bold")
+        table.add_column("Details")
+
+        p = report.get("platform", {})
+        table.add_row(
+            "Operating System",
+            f"{p.get('system')} {p.get('release')}",
+            f"Arch: {p.get('machine')}",
+        )
+        table.add_row(
+            "Python Runtime",
+            p.get("python", "N/A"),
+            p.get("executable", "N/A"),
+        )
+
+        deps = report.get("dependencies", {})
+        for dep, ver in deps.items():
+            status = f"[green]{ver}[/green]" if ver else "[red]Not Installed[/red]"
+            notes = (
+                "Required for serial I/O"
+                if "serial" in dep
+                else "Required for ESP32 flash"
+            )
+            table.add_row(f"Dependency: {dep}", status, notes)
+
+        ports = report.get("devices", {}).get("serial_ports", [])
+        ports_str = (
+            f"[green]{len(ports)} found[/green]" if ports else "[yellow]None[/yellow]"
+        )
+        table.add_row(
+            "Serial Devices",
+            ports_str,
+            ", ".join(x["device"] for x in ports) if ports else "No MCU ports detected",
+        )
+
+        drives = report.get("devices", {}).get("uf2_drives", [])
+        drives_str = (
+            f"[green]{len(drives)} found[/green]" if drives else "[yellow]None[/yellow]"
+        )
+        table.add_row(
+            "UF2 Drives (RP2040)",
+            drives_str,
+            ", ".join(drives) if drives else "No BOOTSEL drives detected",
+        )
+
+        console.print(table)
+
+        warnings = report.get("warnings", [])
+        if warnings:
+            console.print("\n[bold yellow]Warnings / Recommendations:[/bold yellow]")
+            for w in warnings:
+                console.print(f"  • {w}")
+
+        console.print(
+            "\n[bold cyan]Active Support:[/bold cyan] "
+            "Need help with hardware integration? File an issue at [underline]https://github.com/flet-dev/flet/issues[/underline] "
+            "or visit [underline]https://flet.dev/docs/uflet[/underline]\n"
+        )
 
     def _print_ports_table(self) -> None:
         ports = list_serial_ports()

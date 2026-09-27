@@ -731,6 +731,7 @@ if TYPE_CHECKING:
     )
     from flet.pubsub.pubsub_client import PubSubClient
     from flet.pubsub.pubsub_hub import PubSubHub
+    import uflet
     from flet.controls.hardware.device_selector import DeviceSelector
     from flet.controls.hardware.flash_progress import FlashProgress
     from flet.controls.hardware.serial_console import SerialConsole
@@ -757,6 +758,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "AsyncSerial",
+    "uflet",
     "DeviceSelector",
     "ESP32Flasher",
     "FirmwareFlasher",
@@ -1315,6 +1317,7 @@ __all__ = [
 # Generated: exported name -> module that defines it.
 _LAZY = {
     "AsyncSerial": "flet.hardware.serial",
+    "uflet": "uflet",
     "DeviceSelector": "flet.controls.hardware.device_selector",
     "ESP32Flasher": "flet.hardware.flasher",
     "FirmwareFlasher": "flet.hardware.flasher",
@@ -1877,11 +1880,14 @@ def __getattr__(name: str):
     import importlib
 
     module = importlib.import_module(module_path)
-    try:
-        value = getattr(module, name)
-    except AttributeError:
-        # `name` is itself a submodule (e.g. `flet.alignment`), not an attribute.
-        value = importlib.import_module(f"{module_path}.{name}")
+    if module_path == name or module_path.endswith(f".{name}"):
+        value = module
+    else:
+        try:
+            value = getattr(module, name)
+        except AttributeError:
+            # `name` is itself a submodule (e.g. `flet.alignment`), not an attribute.
+            value = importlib.import_module(f"{module_path}.{name}")
     globals()[name] = value  # cache: subsequent access skips __getattr__
     return value
 

@@ -312,3 +312,24 @@ async def test_firmware_flasher_router():
                 chip="esp32",
             )
             mock_esp.assert_called_once()
+
+
+def test_uflet_module_and_doctor():
+    """Test uflet top-level module exports and health check diagnostics."""
+    import uflet
+
+    assert uflet.__version__ == "1.0.0"
+    assert hasattr(uflet, "AsyncSerial")
+    assert hasattr(uflet, "ESP32Flasher")
+    assert hasattr(uflet, "RP2040Flasher")
+    assert hasattr(uflet, "DeviceSelector")
+    assert hasattr(uflet, "SerialConsole")
+    assert hasattr(uflet, "FlashProgress")
+    assert hasattr(uflet, "doctor")
+
+    report = uflet.doctor(verbose=True)
+    assert report["product"] == "μFlet"
+    assert "platform" in report
+    assert "dependencies" in report
+    assert "devices" in report
+    assert isinstance(report["warnings"], list)
