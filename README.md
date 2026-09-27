@@ -54,6 +54,10 @@ Run Python directly in the browser with Pyodide and WebAssembly, with no Python 
 
 Use `flet build` to package your app for desktop, mobile, or web distribution, including the App Store and Google Play. Configure dependencies, icons, and platform settings in your project's `pyproject.toml`.
 
+### ⚡&nbsp;&nbsp;&nbsp;μFlet: Microcontroller & Hardware Suite
+
+Connect, stream telemetry, and flash firmware to microcontrollers directly from Python. With [`uflet`](https://flet.dev/docs/uflet), integrate ESP32 and RP2040 boards into your apps with async serial streaming, UF2/esptool flash engines, and pre-built widgets (`DeviceSelector`, `SerialConsole`, `FlashProgress`). Supports Desktop, WebSerial in browser, and Android USB-OTG.
+
 ### <img src="website/static/img/pages/home/app-testing.svg" width="25" align="top" />&nbsp;&nbsp;&nbsp;Test your app on desktop and mobile
 
 Write [integration tests with pytest](https://flet.dev/docs/getting-started/integration-testing) and run them against your packaged app with `flet test`. Tap buttons, enter text, and verify user flows on desktop and mobile, with screenshot comparisons on Android and iOS.
@@ -148,3 +152,7 @@ flet run --web counter.py
 ## Contributing
 
 Want to help improve Flet? Check out the [contribution guide](CONTRIBUTING.md).
+
+## Support
+
+For questions, community discussions, and active hardware support, see [SUPPORT.md](SUPPORT.md) or visit the [μFlet Support Guide](https://flet.dev/docs/uflet/support-and-sla).

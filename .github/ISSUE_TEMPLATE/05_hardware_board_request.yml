@@ -1,0 +1,46 @@
+name: "μFlet Board Certification & Support Request"
+description: "Request official μFlet recognition, testing, or certification for a microcontroller development board."
+title: "board: "
+labels: ["enhancement", "area/hardware", "board-request"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to request official recognition, auto-detection heuristics, or certification for a new microcontroller board or development kit.
+  - type: input
+    id: "board-name"
+    attributes:
+      label: "Board / Product Name"
+      placeholder: "e.g. Adafruit Feather RP2040 Prop-Maker"
+    validations:
+      required: true
+  - type: input
+    id: "vendor"
+    attributes:
+      label: "Manufacturer / Vendor"
+      placeholder: "e.g. Adafruit Industries, SparkFun, Seeed Studio"
+    validations:
+      required: true
+  - type: input
+    id: "mcu-soc"
+    attributes:
+      label: "Microcontroller / SoC Model"
+      placeholder: "e.g. ESP32-S3, RP2040, STM32F401, nRF52840"
+    validations:
+      required: true
+  - type: input
+    id: "vid-pid"
+    attributes:
+      label: "USB VID:PID Identifiers"
+      description: "Run `flet flash -l` with the board connected and paste the VID:PID."
+      placeholder: "e.g. 239A:80F7"
+    validations:
+      required: true
+  - type: textarea
+    id: "product-url"
+    attributes:
+      label: "Product URL / Schematics / Documentation"
+      description: "Links to product pages, schematics, or GitHub repositories."
+    validations:
+      required: true

@@ -1,0 +1,71 @@
+name: "μFlet Hardware Bug Report"
+description: "Report an issue or bug interfacing with a microcontroller, serial stream, or firmware flasher."
+title: "hardware: "
+labels: ["bug", "area/hardware"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue with μFlet! Please provide diagnostic details below so our hardware maintenance team can reproduce and resolve the problem.
+  - type: checkboxes
+    attributes:
+      label: "Pre-flight Check"
+      options:
+        - label: "I have searched open issues and verified this is not a duplicate"
+          required: true
+        - label: "I have tested with a known data-capable USB cable"
+          required: true
+  - type: input
+    id: "mcu-model"
+    attributes:
+      label: "Target Microcontroller & Board"
+      description: "e.g. ESP32-S3 DevKitC-1, Raspberry Pi Pico W, Arduino Uno R3, custom RP2040 board"
+      placeholder: "e.g. ESP32-S3-WROOM-1"
+    validations:
+      required: true
+  - type: dropdown
+    id: "subsystem"
+    attributes:
+      label: "Subsystem"
+      description: "Which part of μFlet is experiencing issues?"
+      options:
+        - "Serial Communication (AsyncSerial / WebSerial / USB OTG)"
+        - "ESP32 Flasher (ESP32Flasher)"
+        - "RP2040 Flasher (RP2040Flasher / UF2)"
+        - "UI Control: DeviceSelector"
+        - "UI Control: SerialConsole"
+        - "UI Control: FlashProgress"
+        - "CLI: flet flash"
+        - "Packaging: flet build"
+    validations:
+      required: true
+  - type: textarea
+    id: "describe-the-bug"
+    attributes:
+      label: "Describe the bug"
+      description: "What happened, and what was expected instead?"
+    validations:
+      required: true
+  - type: textarea
+    id: "doctor-output"
+    attributes:
+      label: "Diagnostics (`flet flash --doctor` output)"
+      description: "Run `flet flash --doctor` or `flet doctor` and paste the full output below."
+      placeholder: "Paste output of `flet flash --doctor` here"
+    validations:
+      required: true
+  - type: textarea
+    id: "reproduction-code"
+    attributes:
+      label: "Minimal Python Reproduction Code"
+      description: "A minimal runnable script demonstrating the issue."
+      value: |
+        ```python
+        import flet as ft
+        import uflet as uf
+
+        # paste code here
+        ```
+    validations:
+      required: false
