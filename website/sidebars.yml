@@ -94,6 +94,19 @@ docs:
         DragTargetEvent coordinate fields deprecated: updates/breaking-changes/v0-85-0/deprecated-drag-target-event-coordinates.md
         Video control APIs deprecated: updates/breaking-changes/v0-85-0/deprecated-video-apis.md
     Compatibility policy: updates/compatibility-policy.md
+  μFlet (Hardware):
+    _generated_index:
+      title: μFlet (Hardware Suite)
+      slug: /uflet
+      description: The official microcontroller communication, telemetry, and firmware deployment toolkit for Flet.
+    Overview: uflet/index.md
+    Getting Started: uflet/getting-started.md
+    Serial Communication: uflet/serial-communication.md
+    Firmware Flashing: uflet/flashing-engine.md
+    Hardware UI Controls: uflet/controls.md
+    CLI & Diagnostics: uflet/cli-and-diagnostics.md
+    Compatibility Matrix: uflet/compatibility-matrix.md
+    Support & Troubleshooting: uflet/support-and-sla.md
   Reference:
     _index: reference/index.md
     Controls:
@@ -938,6 +951,7 @@ docs:
       flet debug: cli/flet-debug.md
       flet devices: cli/flet-devices.md
       flet doctor: cli/flet-doctor.md
+      flet flash: cli/flet-flash.md
       flet emulators: cli/flet-emulators.md
       flet mcp: cli/flet-mcp.md
       flet pack: cli/flet-pack.md
