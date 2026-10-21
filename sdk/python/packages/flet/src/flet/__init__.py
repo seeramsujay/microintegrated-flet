@@ -1880,14 +1880,18 @@ def __getattr__(name: str):
     import importlib
 
     module = importlib.import_module(module_path)
-    if module_path == name or module_path.endswith(f".{name}"):
-        value = module
+    if module_path == name:
+        value = module  # a top-level module re-exported as is (e.g. `uflet`)
     else:
         try:
+            # Prefer the attribute: `use_dialog` lives in a module of the same name.
             value = getattr(module, name)
         except AttributeError:
-            # `name` is itself a submodule (e.g. `flet.alignment`), not an attribute.
-            value = importlib.import_module(f"{module_path}.{name}")
+            if module_path.endswith(f".{name}"):
+                value = module
+            else:
+                # `name` is a submodule (e.g. `flet.alignment`), not an attribute.
+                value = importlib.import_module(f"{module_path}.{name}")
     globals()[name] = value  # cache: subsequent access skips __getattr__
     return value
 
