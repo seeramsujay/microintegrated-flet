@@ -1,3 +1,4 @@
+import contextlib
 from dataclasses import field
 from typing import Optional
 
@@ -47,10 +48,8 @@ class FlashProgress(Container):
         self._build_ui()
 
     def _safe_update(self):
-        try:
+        with contextlib.suppress(RuntimeError):
             self.update()
-        except RuntimeError:
-            pass
 
     def _build_ui(self):
         self._title_label = Text(

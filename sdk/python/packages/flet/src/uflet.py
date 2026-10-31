@@ -1,8 +1,9 @@
 """
 μFlet (uflet) - The Official Microcontroller & Embedded Hardware Toolkit for Flet.
 
-Provides non-blocking serial communication, high-performance firmware flashing
-engines for ESP32 and RP2040 microcontrollers, and hardware-reactive UI controls.
+Provides non-blocking device communication over USB serial, Bluetooth (LE and
+Classic SPP), WiFi (TCP / UDP / WebSocket) and MQTT, firmware flashing engines
+for ESP32 and RP2040 microcontrollers, and hardware-reactive UI controls.
 
 Usage:
     import uflet as uf
@@ -15,6 +16,11 @@ Usage:
         await ser.write_line("PING")
         response = await ser.read_line()
 
+    # Any transport, by URL
+    async with await uf.connect("mqtt://broker.local?rx=dev/out&tx=dev/in") as link:
+        await link.write_line("PING")
+        print(await link.read_line())
+
     # Flash firmware
     await uf.flash_firmware(
         firmware="firmware.bin",
@@ -23,26 +29,9 @@ Usage:
     )
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import Any, Dict
 
-from flet.hardware.flasher import (
-    ESP32Flasher,
-    FirmwareFlasher,
-    FlashProgressUpdate,
-    RP2040Flasher,
-    detect_uf2_drives,
-    flash_firmware,
-)
-from flet.hardware.serial import (
-    AsyncSerial,
-    Parity,
-    SerialPortInfo,
-    StopBits,
-    create_serial_connection,
-    list_serial_ports,
-)
-
-# Controls are imported lazily or directly when needed
+# Controls are imported directly so `uf.SerialConsole(...)` works without `ft.`
 from flet.controls.hardware.device_selector import DeviceSelector
 from flet.controls.hardware.flash_progress import FlashProgress
 from flet.controls.hardware.serial_console import SerialConsole
@@ -51,6 +40,34 @@ from flet.controls.services.usb_serial import (
     UsbSerialDataEvent,
     UsbSerialDeviceEvent,
 )
+from flet.hardware.bluetooth import (
+    BleDeviceInfo,
+    BleTransport,
+    RfcommTransport,
+    is_rfcomm_supported,
+    scan_ble_devices,
+)
+from flet.hardware.connect import SUPPORTED_SCHEMES, connect, transport_from_url
+from flet.hardware.flasher import (
+    ESP32Flasher,
+    FirmwareFlasher,
+    FlashProgressUpdate,
+    RP2040Flasher,
+    detect_uf2_drives,
+    flash_firmware,
+)
+from flet.hardware.mqtt import MqttTransport
+from flet.hardware.network import TcpTransport, UdpTransport, WebSocketTransport
+from flet.hardware.serial import (
+    AsyncSerial,
+    Parity,
+    SerialPortInfo,
+    StopBits,
+    create_serial_connection,
+    list_serial_ports,
+)
+from flet.hardware.transport import Transport, TransportError
+from flet.hardware.usb_host import UsbHostTransport
 
 __version__ = "1.0.0"
 
@@ -63,6 +80,21 @@ __all__ = [
     "StopBits",
     "list_serial_ports",
     "create_serial_connection",
+    # Transports (USB, Bluetooth, WiFi, MQTT)
+    "Transport",
+    "TransportError",
+    "TcpTransport",
+    "UdpTransport",
+    "WebSocketTransport",
+    "MqttTransport",
+    "BleTransport",
+    "BleDeviceInfo",
+    "RfcommTransport",
+    "UsbHostTransport",
+    "SUPPORTED_SCHEMES",
+    "connect",
+    "transport_from_url",
+    "scan_ble_devices",
     # Firmware Flashing
     "ESP32Flasher",
     "RP2040Flasher",
@@ -94,6 +126,8 @@ def doctor(verbose: bool = False) -> Dict[str, Any]:
         A dictionary containing environment details, hardware availability,
         and diagnostic status.
     """
+    import importlib
+    import importlib.metadata
     import os
     import platform
     import sys
@@ -118,53 +152,55 @@ def doctor(verbose: bool = False) -> Dict[str, Any]:
         "warnings": [],
     }
 
-    # 1. Dependency checks
-    try:
-        import serial
+    # 1. Dependency checks: (module, pip name, purpose, required)
+    deps = [
+        ("serial", "pyserial", "USB / UART serial I/O", True),
+        ("serial_asyncio", "pyserial-asyncio", "USB / UART serial I/O", True),
+        ("esptool", "esptool", "ESP32 flashing", False),
+        ("bleak", "bleak", "Bluetooth LE", False),
+        ("aiomqtt", "aiomqtt", "MQTT", False),
+        ("websockets", "websockets", "WebSocket", False),
+    ]
+    for module_name, pip_name, purpose, required in deps:
+        try:
+            module = importlib.import_module(module_name)
+            version = getattr(module, "__version__", None)
+            if version is None:
+                try:
+                    version = importlib.metadata.version(pip_name)
+                except importlib.metadata.PackageNotFoundError:
+                    version = "installed"
+            status["dependencies"][module_name] = version
+        except ImportError:
+            status["dependencies"][module_name] = None
+            status["warnings"].append(
+                f"Missing '{pip_name}' ({purpose}). "
+                "Install with `pip install 'flet[hardware]'`"
+            )
+            if required:
+                status["healthy"] = False
 
-        status["dependencies"]["pyserial"] = getattr(serial, "__version__", "installed")
-    except ImportError:
-        status["dependencies"]["pyserial"] = None
-        status["warnings"].append(
-            "Missing 'pyserial'. Install with `pip install flet[hardware]`"
-        )
-        status["healthy"] = False
-
-    try:
-        import serial_asyncio
-
-        status["dependencies"]["serial_asyncio"] = getattr(
-            serial_asyncio, "__version__", "installed"
-        )
-    except ImportError:
-        status["dependencies"]["serial_asyncio"] = None
-        status["warnings"].append(
-            "Missing 'pyserial-asyncio'. Install with `pip install flet[hardware]`"
-        )
-        status["healthy"] = False
-
-    try:
-        import esptool
-
-        status["dependencies"]["esptool"] = getattr(esptool, "__version__", "installed")
-    except ImportError:
-        status["dependencies"]["esptool"] = None
-        status["warnings"].append(
-            "Missing 'esptool'. ESP32 flashing will require CLI fallback."
-        )
+    status["transports"] = {
+        "serial": status["dependencies"]["serial"] is not None,
+        "ble": status["dependencies"]["bleak"] is not None,
+        "rfcomm": is_rfcomm_supported(),
+        "tcp": True,
+        "udp": True,
+        "websocket": status["dependencies"]["websockets"] is not None,
+        "mqtt": status["dependencies"]["aiomqtt"] is not None,
+    }
 
     # 2. Permission checks (Linux specific)
     if platform.system() == "Linux":
         try:
             import grp
 
-            user_groups = [
-                g.gr_name for g in grp.getgrall() if os.getlogin() in g.gr_mem
-            ]
+            user_groups = sorted({grp.getgrgid(gid).gr_name for gid in os.getgroups()})
             status["permissions"]["user_groups"] = user_groups
             if "dialout" not in user_groups and "uucp" not in user_groups:
                 status["warnings"].append(
-                    "User may lack serial port permissions. Add user to dialout group: `sudo usermod -a -G dialout $USER`"
+                    "User may lack serial port permissions. Add user to dialout "
+                    "group: `sudo usermod -a -G dialout $USER` (then log in again)"
                 )
         except Exception:
             status["permissions"]["user_groups"] = "unknown"

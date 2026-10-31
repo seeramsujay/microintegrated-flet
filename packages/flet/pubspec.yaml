@@ -53,6 +53,7 @@ dependencies:
   web_socket_channel: ^3.0.2
   window_manager: ^0.5.1
   wakelock_plus: ^1.4.0
+  usb_serial: ^0.5.2
 
 dev_dependencies:
   flutter_test:

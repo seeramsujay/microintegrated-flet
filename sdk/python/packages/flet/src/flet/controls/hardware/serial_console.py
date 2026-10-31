@@ -1,4 +1,6 @@
 import asyncio
+import contextlib
+import inspect
 import re
 from dataclasses import field
 from typing import Any, Callable, Optional, Union
@@ -124,6 +126,9 @@ class SerialConsole(Container):
     font_size: int = 12
     """Font size of terminal lines."""
 
+    title: str = "SERIAL CONSOLE"
+    """Caption shown in the console toolbar."""
+
     on_send: Optional[Callable[[str], Any]] = None
     """Callback fired when the user submits data through the entry bar."""
 
@@ -139,16 +144,16 @@ class SerialConsole(Container):
     _counter_label: Optional[Text] = field(default=None, metadata={"skip": True})
     _paused: bool = field(default=False, metadata={"skip": True})
     _attached_serial: Any = skip_field()
+    _prev_on_data: Any = skip_field()
+    _send_tasks: Any = skip_field()
 
     def __post_init__(self, *args):
         super().__post_init__(*args)
         self._build_ui()
 
     def _safe_update(self):
-        try:
+        with contextlib.suppress(RuntimeError):
             self.update()
-        except RuntimeError:
-            pass
 
     def _build_ui(self):
         """Construct terminal view, toolbar, and data entry bar."""
@@ -180,7 +185,7 @@ class SerialConsole(Container):
         toolbar = Row(
             controls=[
                 Text(
-                    "SERIAL CONSOLE",
+                    self.title,
                     size=12,
                     weight=FontWeight.BOLD,
                     color=Colors.BLUE_GREY_200,
@@ -354,16 +359,65 @@ class SerialConsole(Container):
                 parts.append(line_ctrl.value)
         return "\n".join(parts)
 
-    def attach_serial(self, serial_instance: Any):
+    def attach(self, transport: Any):
         """
-        Bind an AsyncSerial instance to this console for bidirectional streaming.
+        Bind a transport (`AsyncSerial`, `BleTransport`, `MqttTransport`, ...) to
+        this console for bidirectional streaming.
+
+        Received data is appended to the console and submitted input is written
+        to the transport. Any `on_data` handler already set on the transport is
+        still called.
         """
-        self._attached_serial = serial_instance
+        self.detach()
+        self._attached_serial = transport
+        self._prev_on_data = getattr(transport, "on_data", None)
+        prev = self._prev_on_data
 
         def _on_data(chunk: bytes):
             self.append(chunk)
+            if prev:
+                return prev(chunk)
 
-        serial_instance.on_data = _on_data
+        transport.on_data = _on_data
+
+    def attach_serial(self, serial_instance: Any):
+        """Alias of [`attach()`][(c).attach] kept for backwards compatibility."""
+        self.attach(serial_instance)
+
+    def detach(self):
+        """Unbind the currently attached transport, restoring its `on_data`."""
+        transport = self._attached_serial
+        if transport is not None:
+            transport.on_data = self._prev_on_data
+        self._attached_serial = None
+        self._prev_on_data = None
+
+    async def _send_payload(self, payload: bytes):
+        try:
+            await self._attached_serial.write(payload)
+        except Exception as e:
+            self.append(f"\x1b[31m[Error] Send failed: {e}\x1b[0m\n")
+
+    def _schedule(self, coro_fn, *args):
+        """Run a coroutine from either an async or a threaded (sync) handler."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            page = None
+            with contextlib.suppress(RuntimeError):
+                page = self.page
+            if page is not None:
+                page.run_task(coro_fn, *args)
+            else:
+                self.append(
+                    "\x1b[33m[Warning] Console is not on a page; cannot send.\x1b[0m\n"
+                )
+            return
+        if self._send_tasks is None:
+            self._send_tasks = set()
+        task = asyncio.ensure_future(coro_fn(*args))
+        self._send_tasks.add(task)
+        task.add_done_callback(self._send_tasks.discard)
 
     def _handle_send(self, _):
         """Process send action from input field or button."""
@@ -388,8 +442,6 @@ class SerialConsole(Container):
                 payload = bytes.fromhex(hex_clean)
             except ValueError:
                 self.append(f"\x1b[31m[Error] Invalid HEX sequence: {text}\x1b[0m\n")
-                if self.page:
-                    self.update()
                 return
         else:
             payload = (text + suffix).encode("utf-8")
@@ -399,9 +451,18 @@ class SerialConsole(Container):
 
         # Send to attached serial or callback
         if self.on_send:
-            self.on_send(text)
+            result = self.on_send(text)
+            if inspect.isawaitable(result):
 
-        if self._attached_serial and self._attached_serial.is_open:
-            asyncio.create_task(self._attached_serial.write(payload))
+                async def _await_result():
+                    await result
+
+                self._schedule(_await_result)
+
+        if self._attached_serial is not None:
+            if self._attached_serial.is_open:
+                self._schedule(self._send_payload, payload)
+            else:
+                self.append("\x1b[33m[Warning] Device is not connected.\x1b[0m\n")
 
         self._safe_update()

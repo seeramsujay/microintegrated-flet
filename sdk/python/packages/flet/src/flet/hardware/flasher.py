@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import os
 import re
 import struct
@@ -96,9 +97,8 @@ def detect_uf2_drives() -> list[Path]:
                         if (
                             mount_point.name == "RPI-RP2"
                             or (mount_point / "INFO_UF2.TXT").exists()
-                        ):
-                            if mount_point not in drives:
-                                drives.append(mount_point)
+                        ) and mount_point not in drives:
+                            drives.append(mount_point)
             except Exception:
                 pass
 
@@ -265,6 +265,52 @@ class RP2040Flasher:
 # ---------------------------------------------------------------------------
 
 
+# Offset of a merged (bootloader + partitions + app) image per chip family.
+ESP_MERGED_IMAGE_OFFSETS = {
+    "esp32": 0x1000,
+    "esp32c5": 0x2000,
+    "esp32p4": 0x2000,
+}
+ESP_IMAGE_MAGIC = 0xE9
+
+
+def normalize_esp_chip(name: Optional[str]) -> str:
+    """Convert names like 'ESP32-S3' or 'esp32_c3' to esptool ids ('esp32s3')."""
+    if not name:
+        return "auto"
+    return re.sub(r"[^a-z0-9]", "", name.lower()) or "auto"
+
+
+def default_esp_offset(chip: str) -> int:
+    """Default flash offset of a merged firmware image for an ESP chip."""
+    return ESP_MERGED_IMAGE_OFFSETS.get(normalize_esp_chip(chip), 0x0)
+
+
+def sniff_firmware_type(firmware_path: Path) -> Optional[str]:
+    """Return 'uf2', 'esp' or None by inspecting the firmware file header."""
+    try:
+        with open(firmware_path, "rb") as f:
+            header = f.read(4)
+    except OSError:
+        return None
+    if len(header) == 4 and struct.unpack("<I", header)[0] == UF2_MAGIC_START0:
+        return "uf2"
+    if header[:1] == bytes([ESP_IMAGE_MAGIC]):
+        return "esp"
+    return None
+
+
+def _run_esptool(args: list[str]) -> None:
+    """Run esptool in-process, turning `sys.exit()` into exceptions."""
+    import esptool  # type: ignore
+
+    try:
+        esptool.main(args)
+    except SystemExit as e:
+        if e.code not in (None, 0):
+            raise RuntimeError(f"esptool exited with code {e.code}") from e
+
+
 class ESP32Flasher:
     """
     Embedded flasher for ESP32 family (ESP32, ESP32-S2, ESP32-S3, ESP32-C3, ESP8266).
@@ -275,7 +321,7 @@ class ESP32Flasher:
         port: Optional[str] = None,
         baudrate: int = 460800,
         chip: str = "auto",
-        offset: int = 0x1000,
+        offset: Optional[int] = None,
         force_cli: bool = False,
     ):
         self.port = port
@@ -284,23 +330,30 @@ class ESP32Flasher:
         self.offset = offset
         self.force_cli = force_cli
 
+    def _global_args(self) -> list[str]:
+        """esptool options that must come before the command name."""
+        args = ["--port", str(self.port), "--baud", str(self.baudrate)]
+        if self.chip and self.chip != "auto":
+            args.extend(["--chip", normalize_esp_chip(self.chip)])
+        return args
+
     async def detect_chip(self) -> str:
         """Query the connected device over serial to identify the exact ESP chip model."""
         if not self.port:
             raise ValueError("Serial port must be specified to detect chip.")
 
         try:
-            import esptool  # type: ignore
-
-            loop = asyncio.get_running_loop()
+            from esptool.cmds import detect_chip  # type: ignore
 
             def _detect():
-                esp = esptool.cmds.detect_chip(
-                    [f"--port={self.port}", f"--baud={self.baudrate}"]
-                )
-                return esp.CHIP_NAME
+                esp = detect_chip(port=self.port, baud=115200)
+                try:
+                    return esp.CHIP_NAME
+                finally:
+                    with contextlib.suppress(Exception):
+                        esp._port.close()
 
-            return await loop.run_in_executor(None, _detect)
+            return await asyncio.to_thread(_detect)
         except Exception:
             # Fallback label
             return "ESP32"
@@ -331,27 +384,16 @@ class ESP32Flasher:
 
         if not self.force_cli:
             try:
-                import esptool  # type: ignore
-
-                loop = asyncio.get_running_loop()
-                cmd_args = [
-                    "--port",
-                    str(self.port),
-                    "--baud",
-                    str(self.baudrate),
-                    "erase_flash",
-                ]
-                if self.chip != "auto":
-                    cmd_args.extend(["--chip", self.chip])
-
-                def _erase():
-                    esptool.main(cmd_args)
-
-                await loop.run_in_executor(None, _erase)
+                import esptool  # type: ignore  # noqa: F401
+            except ImportError:
+                esptool = None
+            if esptool is not None:
+                # Global options (--chip/--port/--baud) must precede the command.
+                await asyncio.to_thread(
+                    _run_esptool, self._global_args() + ["erase_flash"]
+                )
                 _notify("complete", 1.0, "Flash memory erased successfully.")
                 return True
-            except ImportError:
-                pass
 
         # Fallback to esptool CLI executable if available
         return await self._run_cli(["erase_flash"], progress_callback, start_time)
@@ -365,18 +407,20 @@ class ESP32Flasher:
         erase_first: bool = False,
         progress_callback: Optional[Callable[[FlashProgressUpdate], None]] = None,
     ) -> bool:
+        """
+        Write a `.bin` image to the ESP32 microcontroller at the specified flash offset.
+        """
         if port is not None:
             self.port = port
         if chip is not None:
             self.chip = chip
-        """
-        Write a `.bin` image to the ESP32 microcontroller at the specified flash offset.
-        """
         firmware_file = Path(firmware_path)
         if not firmware_file.exists():
             raise FileNotFoundError(f"Firmware file not found: {firmware_file}")
 
         flash_offset = offset if offset is not None else self.offset
+        if flash_offset is None:
+            flash_offset = default_esp_offset(self.chip)
         total_bytes = firmware_file.stat().st_size
         start_time = time.time()
 
@@ -411,27 +455,16 @@ class ESP32Flasher:
         # Attempt in-process esptool call
         if not self.force_cli:
             try:
-                import esptool  # type: ignore
-
-                loop = asyncio.get_running_loop()
-
-                cmd_args = [
-                    "--port",
-                    str(self.port),
-                    "--baud",
-                    str(self.baudrate),
+                import esptool  # type: ignore  # noqa: F401
+            except ImportError:
+                esptool = None
+            if esptool is not None:
+                cmd_args = self._global_args() + [
+                    "write_flash",
+                    "-z",
+                    hex(flash_offset),
+                    str(firmware_file),
                 ]
-                if self.chip != "auto":
-                    cmd_args.extend(["--chip", self.chip])
-
-                cmd_args.extend(
-                    [
-                        "write_flash",
-                        "-z",
-                        hex(flash_offset),
-                        str(firmware_file),
-                    ]
-                )
 
                 # Simulated granular progress pump while esptool runs
                 done_event = asyncio.Event()
@@ -453,7 +486,7 @@ class ESP32Flasher:
 
                 monitor_task = asyncio.create_task(_progress_monitor())
                 try:
-                    await loop.run_in_executor(None, esptool.main, cmd_args)
+                    await asyncio.to_thread(_run_esptool, cmd_args)
                 finally:
                     done_event.set()
                     monitor_task.cancel()
@@ -466,8 +499,6 @@ class ESP32Flasher:
                     speed=(total_bytes / 1024) / elapsed,
                 )
                 return True
-            except ImportError:
-                pass
 
         # Fallback to esptool CLI
         cli_args = [
@@ -486,18 +517,7 @@ class ESP32Flasher:
         total_bytes: int = 0,
     ) -> bool:
         """Fallback to executing esptool subprocess and parsing progress."""
-        cmd = [
-            sys.executable,
-            "-m",
-            "esptool",
-            "--port",
-            str(self.port),
-            "--baud",
-            str(self.baudrate),
-        ]
-        if self.chip != "auto":
-            cmd.extend(["--chip", self.chip])
-        cmd.extend(subcmd)
+        cmd = [sys.executable, "-m", "esptool"] + self._global_args() + subcmd
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -583,12 +603,15 @@ class FirmwareFlasher:
         if not firmware_file.exists():
             raise FileNotFoundError(f"Firmware binary does not exist: {firmware_file}")
 
-        # Determine target architecture
-        is_rp2040 = (
-            self.chip == "rp2040"
-            or firmware_file.suffix.lower() == ".uf2"
-            or "pico" in firmware_file.name.lower()
-        )
+        # Determine target architecture: explicit chip, extension, then file magic.
+        if self.chip in ("rp2040", "rp2350", "pico"):
+            is_rp2040 = True
+        elif self.chip.startswith("esp"):
+            is_rp2040 = False
+        elif firmware_file.suffix.lower() == ".uf2":
+            is_rp2040 = True
+        else:
+            is_rp2040 = sniff_firmware_type(firmware_file) == "uf2"
 
         if is_rp2040:
             flasher = RP2040Flasher(mount_path=self.port)
@@ -596,14 +619,19 @@ class FirmwareFlasher:
                 firmware_file, progress_callback=progress_callback
             )
         else:
-            default_offset = 0x0 if self.chip in ("esp32c3", "esp32s3") else 0x1000
-            target_offset = self.offset if self.offset is not None else default_offset
             esp_flasher = ESP32Flasher(
                 port=self.port,
                 baudrate=self.baudrate,
                 chip=self.chip,
-                offset=target_offset,
             )
+            target_offset = self.offset
+            if target_offset is None:
+                if esp_flasher.chip == "auto" and self.port:
+                    esp_flasher.chip = normalize_esp_chip(
+                        await esp_flasher.detect_chip()
+                    )
+                target_offset = default_esp_offset(esp_flasher.chip)
+            esp_flasher.offset = target_offset
             return await esp_flasher.flash(
                 firmware_file,
                 offset=target_offset,

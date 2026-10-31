@@ -13,8 +13,17 @@ __all__ = ["UsbSerial", "UsbSerialDataEvent", "UsbSerialDeviceEvent"]
 class UsbSerialDataEvent(Event["UsbSerial"]):
     """Event fired when raw serial data is received from USB Host."""
 
-    raw_data: bytes = b""
-    """Received raw data bytes."""
+    data: Union[bytes, str, None] = None
+    """Received data as sent by the client (raw bytes or a base64 string)."""
+
+    @property
+    def raw_data(self) -> bytes:
+        """Received data decoded to raw bytes."""
+        if self.data is None:
+            return b""
+        if isinstance(self.data, str):
+            return base64.b64decode(self.data)
+        return bytes(self.data)
 
 
 @dataclass(kw_only=True)
@@ -29,7 +38,10 @@ class UsbSerialDeviceEvent(Event["UsbSerial"]):
 @control("UsbSerial")
 class UsbSerial(Service):
     """
-    Service providing USB Host / OTG serial communication on mobile and embedded clients.
+    Service providing USB Host / OTG serial communication on mobile clients.
+
+    Supported on Android (CDC-ACM, CP210x, CH34x, FTDI and PL2303 adapters).
+    On desktop use [`AsyncSerial`][flet.AsyncSerial] instead.
     """
 
     on_data: Optional[EventHandler[UsbSerialDataEvent]] = None
@@ -44,6 +56,9 @@ class UsbSerial(Service):
     async def list_ports(self) -> list[dict[str, Any]]:
         """
         List available USB serial devices detected by the client operating system.
+
+        Each item is a dict with `device_name`, `vendor_id`, `product_id`,
+        `manufacturer_name`, `product_name` and `serial` keys.
         """
         result = await self._invoke_method("list_ports")
         return result or []
@@ -58,6 +73,12 @@ class UsbSerial(Service):
     ) -> bool:
         """
         Open connection to a USB serial device.
+
+        Args:
+            port_name: `device_name` from `list_ports()`; the first device if omitted.
+
+        Returns:
+            `True` if the port was opened (the user may be asked for permission).
         """
         args = {
             "port_name": port_name,

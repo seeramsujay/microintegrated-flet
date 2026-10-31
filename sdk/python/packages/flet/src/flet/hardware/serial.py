@@ -1,10 +1,13 @@
 import asyncio
+import contextlib
 import enum
 import os
 import platform
 import sys
 from dataclasses import dataclass
-from typing import Any, Callable, Optional, Union
+from typing import Any, Optional
+
+from flet.hardware.transport import Transport, TransportError
 
 __all__ = [
     "AsyncSerial",
@@ -119,9 +122,20 @@ class SerialPortInfo:
         return " ".join(parts)
 
 
-def list_serial_ports() -> list[SerialPortInfo]:
+def _is_legacy_placeholder(port: Any) -> bool:
+    """Linux 8250 `/dev/ttyS*` placeholders with no hardware behind them."""
+    if getattr(port, "subsystem", None) == "serial-base":
+        return True
+    return port.device.startswith("/dev/ttyS") and (port.hwid or "n/a") == "n/a"
+
+
+def list_serial_ports(include_legacy: bool = False) -> list[SerialPortInfo]:
     """
     Enumerate available serial ports across all supported platforms.
+
+    Args:
+        include_legacy: Also return Linux `/dev/ttyS*` placeholder ports that have
+            no hardware attached (hidden by default).
     """
     ports: list[SerialPortInfo] = []
 
@@ -146,6 +160,8 @@ def list_serial_ports() -> list[SerialPortInfo]:
         from serial.tools import list_ports as serial_tools_ports  # type: ignore
 
         for p in serial_tools_ports.comports():
+            if not include_legacy and _is_legacy_placeholder(p):
+                continue
             info = SerialPortInfo(
                 device=p.device,
                 name=p.name,
@@ -192,11 +208,14 @@ def list_serial_ports() -> list[SerialPortInfo]:
     return ports
 
 
-class AsyncSerial:
+class AsyncSerial(Transport):
     """
     Asynchronous serial port interface supporting Desktop OS streams,
-    Browser/Pyodide WebSerial API, and Mobile USB-Host bridges.
+    Browser/Pyodide WebSerial API, and Bluetooth Classic SPP ports exposed by
+    the OS (`/dev/rfcomm0`, `/dev/cu.<device>`, `COMx`).
     """
+
+    scheme = "serial"
 
     def __init__(
         self,
@@ -210,50 +229,49 @@ class AsyncSerial:
         xonxoff: bool = False,
         rtscts: bool = False,
         dsrdtr: bool = False,
+        **kwargs: Any,
     ):
+        super().__init__(**kwargs)
         self.port = port
-        self.baudrate = baudrate
-        self.bytesize = bytesize
-        self.parity = parity
-        self.stopbits = stopbits
+        self.baudrate = int(baudrate)
+        self.bytesize = int(bytesize)
+        self.parity = Parity(parity)
+        self.stopbits = StopBits(stopbits)
         self.timeout = timeout
         self.write_timeout = write_timeout
         self.xonxoff = xonxoff
         self.rtscts = rtscts
         self.dsrdtr = dsrdtr
 
-        self.is_open = False
         self._reader: Optional[asyncio.StreamReader] = None
         self._writer: Optional[asyncio.StreamWriter] = None
         self._serial_sync: Any = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._read_task: Optional[asyncio.Task] = None
-        self._buffer = bytearray()
-        self._read_queue: asyncio.Queue[bytes] = asyncio.Queue()
+        self._web_reader: Any = None
 
-        # Callbacks
-        self.on_data: Optional[Callable[[bytes], Any]] = None
-        self.on_line: Optional[Callable[[str], Any]] = None
-        self.on_error: Optional[Callable[[Exception], Any]] = None
-        self.on_disconnect: Optional[Callable[[], Any]] = None
+    @property
+    def description(self) -> str:
+        return f"serial://{self.port}@{self.baudrate}"
 
-    async def open(self) -> None:
-        """Open asynchronous serial connection."""
-        if self.is_open:
-            return
+    @property
+    def serial(self) -> Any:
+        """The underlying `serial.Serial` object (or WebSerial port), if any."""
+        if self._writer is not None:
+            return getattr(self._writer.transport, "serial", None)
+        return self._serial_sync
 
-        self._loop = asyncio.get_running_loop()
-
+    async def _open(self) -> None:
         # WebSerial / Pyodide mode
-        if sys.platform == "emscripten" or self.port == "WebSerial":
+        if sys.platform == "emscripten" or self.port.lower() == "webserial":
             await self._open_webserial()
-            self.is_open = True
             return
 
         # Native Desktop mode
         try:
             import serial_asyncio  # type: ignore
+        except ImportError:
+            serial_asyncio = None
 
+        if serial_asyncio is not None:
             self._reader, self._writer = await serial_asyncio.open_serial_connection(
                 url=self.port,
                 baudrate=self.baudrate,
@@ -266,37 +284,33 @@ class AsyncSerial:
                 rtscts=self.rtscts,
                 dsrdtr=self.dsrdtr,
             )
-            self.is_open = True
-            self._read_task = asyncio.create_task(self._read_loop_asyncio())
+            self._start_task(self._read_loop_asyncio())
             return
-        except ImportError:
-            pass
 
         # Fallback to threaded sync pyserial
         try:
             import serial  # type: ignore
-
-            self._serial_sync = await asyncio.to_thread(
-                serial.Serial,
-                port=self.port,
-                baudrate=self.baudrate,
-                bytesize=self.bytesize,
-                parity=self.parity.value,
-                stopbits=self.stopbits.value,
-                timeout=0.1,
-                write_timeout=self.write_timeout,
-                xonxoff=self.xonxoff,
-                rtscts=self.rtscts,
-                dsrdtr=self.dsrdtr,
-            )
-            self.is_open = True
-            self._read_task = asyncio.create_task(self._read_loop_threaded())
-            return
         except ImportError as e:
-            raise RuntimeError(
-                "pyserial or serial-asyncio is required for desktop serial communication. "
-                "Install with `pip install flet[hardware]` or `pip install pyserial pyserial-asyncio`."
+            raise TransportError(
+                "pyserial or pyserial-asyncio is required for desktop serial "
+                "communication. Install with `pip install 'flet[hardware]'` or "
+                "`pip install pyserial pyserial-asyncio`."
             ) from e
+
+        self._serial_sync = await asyncio.to_thread(
+            serial.Serial,
+            port=self.port,
+            baudrate=self.baudrate,
+            bytesize=self.bytesize,
+            parity=self.parity.value,
+            stopbits=self.stopbits.value,
+            timeout=0.1,
+            write_timeout=self.write_timeout,
+            xonxoff=self.xonxoff,
+            rtscts=self.rtscts,
+            dsrdtr=self.dsrdtr,
+        )
+        self._start_task(self._read_loop_threaded())
 
     async def _open_webserial(self) -> None:
         """Initialize connection using browser WebSerial API."""
@@ -304,179 +318,85 @@ class AsyncSerial:
             import js  # type: ignore
             from pyodide.ffi import to_js  # type: ignore
 
-            options = to_js({"baudRate": self.baudrate})
+            options = to_js(
+                {"baudRate": self.baudrate}, dict_converter=js.Object.fromEntries
+            )
             port_obj = await js.navigator.serial.requestPort()
             await port_obj.open(options)
             self._serial_sync = port_obj
-            self._read_task = asyncio.create_task(self._read_loop_webserial())
+            self._start_task(self._read_loop_webserial())
         except Exception as e:
-            raise RuntimeError(f"Failed to open WebSerial port: {e}") from e
+            raise TransportError(f"Failed to open WebSerial port: {e}") from e
 
     async def _read_loop_asyncio(self) -> None:
         """Background coroutine reading from serial_asyncio StreamReader."""
         assert self._reader is not None
-        while self.is_open:
-            try:
+        try:
+            while not self._closing:
                 data = await self._reader.read(1024)
                 if not data:
-                    if self._reader.at_eof():
-                        break
-                    await asyncio.sleep(0.01)
-                    continue
+                    break
                 self._feed_data(data)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                if self.on_error:
-                    self.on_error(e)
-                break
-        await self.close()
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            self._connection_lost(e)
+            return
+        self._connection_lost()
 
     async def _read_loop_threaded(self) -> None:
         """Background coroutine reading from standard pyserial in worker thread."""
-        assert self._serial_sync is not None
-        while self.is_open:
-            try:
-                data = await asyncio.to_thread(self._serial_sync.read, 1024)
+        ser = self._serial_sync
+        assert ser is not None
+        try:
+            while not self._closing:
+                data = await asyncio.to_thread(ser.read, 1024)
                 if data:
                     self._feed_data(data)
-                else:
-                    await asyncio.sleep(0.01)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                if self.on_error:
-                    self.on_error(e)
-                break
-        await self.close()
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            self._connection_lost(e)
 
     async def _read_loop_webserial(self) -> None:
         """Background coroutine reading from WebSerial readable stream."""
         assert self._serial_sync is not None
         try:
-            reader = self._serial_sync.readable.getReader()
-            while self.is_open:
-                res = await reader.read()
+            self._web_reader = self._serial_sync.readable.getReader()
+            while not self._closing:
+                res = await self._web_reader.read()
                 if res.done:
                     break
-                chunk = bytes(res.value)
-                self._feed_data(chunk)
+                self._feed_data(bytes(res.value.to_py()))
         except asyncio.CancelledError:
-            pass
+            return
         except Exception as e:
-            if self.on_error:
-                self.on_error(e)
-        finally:
-            await self.close()
+            self._connection_lost(e)
+            return
+        self._connection_lost()
 
-    def _feed_data(self, chunk: bytes) -> None:
-        """Process incoming raw byte chunks and trigger handlers."""
-        self._buffer.extend(chunk)
-        self._read_queue.put_nowait(chunk)
-
-        if self.on_data:
-            try:
-                self.on_data(chunk)
-            except Exception as e:
-                if self.on_error:
-                    self.on_error(e)
-
-        # Check for completed lines
-        if self.on_line:
-            while b"\n" in self._buffer:
-                idx = self._buffer.index(b"\n")
-                line_bytes = bytes(self._buffer[: idx + 1])
-                del self._buffer[: idx + 1]
-                try:
-                    line_str = line_bytes.decode("utf-8", errors="replace")
-                    self.on_line(line_str)
-                except Exception as e:
-                    if self.on_error:
-                        self.on_error(e)
-
-    def _on_incoming_bytes(self, chunk: bytes) -> None:
-        """Alias for feeding incoming bytes directly (useful for tests and mocks)."""
-        self._feed_data(chunk)
-
-    async def read(self, n: int = -1) -> bytes:
-        """Read up to n bytes asynchronously from the incoming stream."""
-        if n == 0:
-            return b""
-
-        while len(self._buffer) == 0:
-            if not self.is_open and self._read_queue.empty():
-                return b""
-            chunk = await self._read_queue.get()
-            # Chunk was already added to _buffer in _feed_data
-
-        if n < 0 or len(self._buffer) <= n:
-            data = bytes(self._buffer)
-            self._buffer.clear()
-            return data
-
-        data = bytes(self._buffer[:n])
-        del self._buffer[:n]
-        return data
-
-    async def read_line(self) -> str:
-        """Read a line (up to \n) asynchronously."""
-        while b"\n" not in self._buffer:
-            if not self.is_open and self._read_queue.empty():
-                line = bytes(self._buffer).decode("utf-8", errors="replace")
-                self._buffer.clear()
-                return line
-            await self._read_queue.get()
-
-        idx = self._buffer.index(b"\n")
-        line_bytes = bytes(self._buffer[: idx + 1])
-        del self._buffer[: idx + 1]
-        return line_bytes.decode("utf-8", errors="replace")
-
-    async def read_until(self, expected: bytes = b"\n") -> bytes:
-        """Read bytes until the expected sequence is found."""
-        while expected not in self._buffer:
-            if not self.is_open and self._read_queue.empty():
-                data = bytes(self._buffer)
-                self._buffer.clear()
-                return data
-            await self._read_queue.get()
-
-        idx = self._buffer.index(expected) + len(expected)
-        data = bytes(self._buffer[:idx])
-        del self._buffer[:idx]
-        return data
-
-    async def write(self, data: Union[bytes, bytearray, memoryview]) -> int:
-        """Write bytes asynchronously to the serial port."""
-        if not self.is_open:
-            raise RuntimeError("Serial port is not open.")
-
-        raw_data = bytes(data)
-
+    async def _write(self, data: bytes) -> int:
         if self._writer is not None:
-            self._writer.write(raw_data)
+            self._writer.write(data)
             await self._writer.drain()
-            return len(raw_data)
-
-        if self._serial_sync is not None and hasattr(self._serial_sync, "write"):
-            # Pyserial threaded write
-            return await asyncio.to_thread(self._serial_sync.write, raw_data)
+            return len(data)
 
         if self._serial_sync is not None and hasattr(self._serial_sync, "writable"):
             # WebSerial write
             from pyodide.ffi import to_js  # type: ignore
 
             writer = self._serial_sync.writable.getWriter()
-            js_arr = to_js(raw_data)
-            await writer.write(js_arr)
-            writer.releaseLock()
-            return len(raw_data)
+            try:
+                await writer.write(to_js(data))
+            finally:
+                writer.releaseLock()
+            return len(data)
 
-        return 0
+        if self._serial_sync is not None:
+            # Pyserial threaded write
+            return await asyncio.to_thread(self._serial_sync.write, data)
 
-    async def write_line(self, line: str, newline: str = "\r\n") -> int:
-        """Helper to write a string line with newline appended."""
-        return await self.write((line + newline).encode("utf-8"))
+        raise TransportError("Serial port is not open.")
 
     async def flush(self) -> None:
         """Flush write buffers."""
@@ -487,56 +407,63 @@ class AsyncSerial:
 
     async def set_dtr(self, active: bool = True) -> None:
         """Set Data Terminal Ready (DTR) line."""
-        if self._serial_sync is not None and hasattr(self._serial_sync, "dtr"):
-            self._serial_sync.dtr = active
+        ser = self.serial
+        if ser is None:
+            return
+        if hasattr(ser, "setSignals"):  # WebSerial
+            await ser.setSignals(to_js_signals(dataTerminalReady=active))
+        elif hasattr(ser, "dtr"):
+            ser.dtr = active
 
     async def set_rts(self, active: bool = True) -> None:
         """Set Request To Send (RTS) line."""
-        if self._serial_sync is not None and hasattr(self._serial_sync, "rts"):
-            self._serial_sync.rts = active
-
-    async def close(self) -> None:
-        """Close serial connection and release all resources."""
-        if not self.is_open:
+        ser = self.serial
+        if ser is None:
             return
-        self.is_open = False
+        if hasattr(ser, "setSignals"):  # WebSerial
+            await ser.setSignals(to_js_signals(requestToSend=active))
+        elif hasattr(ser, "rts"):
+            ser.rts = active
 
-        if self._read_task and not self._read_task.done():
-            self._read_task.cancel()
-            try:
-                await self._read_task
-            except (asyncio.CancelledError, Exception):
-                pass
+    async def reset_device(self, delay: float = 0.1) -> None:
+        """Pulse DTR/RTS to reset a typical ESP32 / Arduino board into run mode."""
+        await self.set_dtr(False)
+        await self.set_rts(True)
+        await asyncio.sleep(delay)
+        await self.set_rts(False)
 
+    async def _close(self) -> None:
         if self._writer is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._writer.close()
                 await self._writer.wait_closed()
-            except Exception:
-                pass
             self._writer = None
             self._reader = None
 
         if self._serial_sync is not None:
-            try:
-                if hasattr(self._serial_sync, "close"):
-                    await asyncio.to_thread(self._serial_sync.close)
-            except Exception:
-                pass
+            ser = self._serial_sync
             self._serial_sync = None
+            if hasattr(ser, "readable"):
+                # WebSerial: release the stream lock before closing the port.
+                if self._web_reader is not None:
+                    with contextlib.suppress(Exception):
+                        await self._web_reader.cancel()
+                    with contextlib.suppress(Exception):
+                        self._web_reader.releaseLock()
+                    self._web_reader = None
+                with contextlib.suppress(Exception):
+                    await ser.close()
+            else:
+                with contextlib.suppress(Exception):
+                    await asyncio.to_thread(ser.close)
 
-        if self.on_disconnect:
-            try:
-                self.on_disconnect()
-            except Exception:
-                pass
 
-    async def __aenter__(self) -> "AsyncSerial":
-        await self.open()
-        return self
+def to_js_signals(**signals: bool) -> Any:
+    """Convert keyword signals into a JS object for WebSerial `setSignals()`."""
+    import js  # type: ignore
+    from pyodide.ffi import to_js  # type: ignore
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        await self.close()
+    return to_js(signals, dict_converter=js.Object.fromEntries)
 
 
 async def create_serial_connection(

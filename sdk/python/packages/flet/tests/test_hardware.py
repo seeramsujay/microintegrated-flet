@@ -6,26 +6,21 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import flet as ft
 from flet.controls.hardware.device_selector import DeviceSelector
 from flet.controls.hardware.flash_progress import FlashProgress
 from flet.controls.hardware.serial_console import (
     SerialConsole,
     parse_ansi_to_spans,
 )
-from flet.controls.services.usb_serial import UsbSerial, UsbSerialDataEvent
 from flet.hardware.flasher import (
     ESP32Flasher,
     FlashProgressUpdate,
     RP2040Flasher,
-    detect_uf2_drives,
     flash_firmware,
 )
 from flet.hardware.serial import (
     AsyncSerial,
     SerialPortInfo,
-    create_serial_connection,
-    list_serial_ports,
 )
 
 
@@ -333,3 +328,125 @@ def test_uflet_module_and_doctor():
     assert "dependencies" in report
     assert "devices" in report
     assert isinstance(report["warnings"], list)
+
+
+def test_device_selector_selection_callback():
+    """Selecting a port must not crash and reports the selected device."""
+    mock_ports = [
+        SerialPortInfo(device="/dev/ttyUSB0", vid=0x10C4, pid=0xEA60),
+        SerialPortInfo(device="/dev/ttyACM0", vid=0x2E8A, pid=0x000A),
+    ]
+    selected = []
+    with patch(
+        "flet.controls.hardware.device_selector.list_serial_ports",
+        return_value=mock_ports,
+    ):
+        selector = DeviceSelector(on_select=selected.append)
+        selector._dropdown_ref.value = "/dev/ttyACM0"
+        selector._handle_selection_change(None)
+
+    assert selector.selected_port == "/dev/ttyACM0"
+    assert selected[0].device == "/dev/ttyACM0"
+
+
+@pytest.mark.asyncio
+async def test_serial_console_attach_and_send():
+    """Console streams transport data in and writes submitted input out."""
+    ser = AsyncSerial(port="/dev/null")
+    ser.is_open = True
+    ser.write = AsyncMock(return_value=4)
+    previous = []
+    ser.on_data = previous.append
+
+    console = SerialConsole()
+    console.attach(ser)
+    ser._on_incoming_bytes(b"boot ok\n")
+    assert "boot ok" in console.get_content()
+    assert previous == [b"boot ok\n"]
+
+    console._input_field.value = "PING"
+    console._handle_send(None)
+    await asyncio.sleep(0.01)
+    ser.write.assert_awaited_once_with(b"PING\r\n")
+
+    console.detach()
+    assert ser.on_data == previous.append
+
+
+@pytest.mark.asyncio
+async def test_serial_console_reports_send_errors():
+    ser = AsyncSerial(port="/dev/null")
+    ser.is_open = True
+    ser.write = AsyncMock(side_effect=OSError("device gone"))
+    console = SerialConsole()
+    console.attach(ser)
+    console._input_field.value = "PING"
+    console._handle_send(None)
+    await asyncio.sleep(0.01)
+    assert "device gone" in console.get_content()
+
+
+def test_esp_offsets_and_firmware_sniffing():
+    from flet.hardware.flasher import (
+        default_esp_offset,
+        normalize_esp_chip,
+        sniff_firmware_type,
+    )
+
+    assert normalize_esp_chip("ESP32-S3") == "esp32s3"
+    assert default_esp_offset("esp32") == 0x1000
+    for chip in ("esp32s2", "esp32s3", "esp32c3", "esp32c6", "esp8266"):
+        assert default_esp_offset(chip) == 0x0
+    assert default_esp_offset("ESP32-P4") == 0x2000
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        esp = Path(tmpdir) / "app.bin"
+        esp.write_bytes(b"\xe9" + b"\x00" * 15)
+        uf2 = Path(tmpdir) / "pico.bin"
+        uf2.write_bytes(struct.pack("<I", 0x0A324655) + b"\x00" * 12)
+        assert sniff_firmware_type(esp) == "esp"
+        assert sniff_firmware_type(uf2) == "uf2"
+
+
+@pytest.mark.asyncio
+async def test_esptool_global_options_precede_command():
+    """esptool rejects --chip after the command name, so ordering matters."""
+    flasher = ESP32Flasher(port="/dev/ttyUSB0", chip="ESP32-S3", force_cli=True)
+    mock_process = MagicMock()
+    mock_process.returncode = 0
+    mock_process.stdout.readline = AsyncMock(return_value=b"")
+    mock_process.wait = AsyncMock(return_value=0)
+
+    with patch(
+        "asyncio.create_subprocess_exec", return_value=mock_process
+    ) as mock_exec:
+        await flasher.erase_flash()
+    args = list(mock_exec.call_args.args)
+    assert args.index("--chip") < args.index("erase_flash")
+    assert args[args.index("--chip") + 1] == "esp32s3"
+
+
+@pytest.mark.asyncio
+async def test_firmware_flasher_uses_chip_offset():
+    with tempfile.NamedTemporaryFile(suffix=".bin") as bin_file:
+        with patch.object(ESP32Flasher, "flash", new_callable=AsyncMock) as mock_esp:
+            await flash_firmware(
+                firmware_path=bin_file.name, port="/dev/ttyUSB0", chip="esp32s3"
+            )
+        assert mock_esp.await_args.kwargs["offset"] == 0x0
+
+        with (
+            patch.object(ESP32Flasher, "flash", new_callable=AsyncMock) as mock_esp,
+            patch.object(ESP32Flasher, "detect_chip", AsyncMock(return_value="ESP32")),
+        ):
+            await flash_firmware(firmware_path=bin_file.name, port="/dev/ttyUSB0")
+        assert mock_esp.await_args.kwargs["offset"] == 0x1000
+
+
+def test_doctor_reports_transports():
+    import uflet
+
+    report = uflet.doctor()
+    for name in ("serial", "ble", "rfcomm", "tcp", "udp", "websocket", "mqtt"):
+        assert name in report["transports"]
+    assert "bleak" in report["dependencies"]

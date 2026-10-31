@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 from dataclasses import field
 from typing import Any, Callable, Optional, Union
 
@@ -45,6 +47,9 @@ class DeviceSelector(Container):
     on_device_disconnected: Optional[Callable[[SerialPortInfo], Any]] = None
     """Callback fired when an active serial device is disconnected."""
 
+    on_select: Optional[Callable[[Optional[SerialPortInfo]], Any]] = None
+    """Callback fired when the user picks a port; receives the selected device."""
+
     _ports_cache: list[SerialPortInfo] = field(
         default_factory=list, metadata={"skip": True}
     )
@@ -56,11 +61,31 @@ class DeviceSelector(Container):
         super().__post_init__(*args)
         self._build_ui()
 
+    def did_mount(self):
+        super().did_mount()
+        if self.auto_refresh and self._refresh_task is None:
+            self._refresh_task = self.page.run_task(self._auto_refresh_loop)
+
+    def will_unmount(self):
+        if self._refresh_task is not None:
+            self._refresh_task.cancel()
+            self._refresh_task = None
+        super().will_unmount()
+
+    async def _auto_refresh_loop(self):
+        """Poll for plugged / unplugged devices while mounted."""
+        known = {p.device for p in self._ports_cache}
+        while True:
+            await asyncio.sleep(max(self.refresh_interval, 0.2))
+            ports = await asyncio.to_thread(list_serial_ports)
+            current = {p.device for p in ports if self._matches_filter(p)}
+            if current != known:
+                known = current
+                self.refresh()
+
     def _safe_update(self):
-        try:
+        with contextlib.suppress(RuntimeError):
             self.update()
-        except RuntimeError:
-            pass
 
     def _build_ui(self):
         """Assemble the visual hierarchy for the device selector."""
@@ -197,8 +222,8 @@ class DeviceSelector(Container):
         if self._dropdown_ref:
             self.selected_port = self._dropdown_ref.value
         self._update_badge()
-        if self.on_change:
-            self.on_change(e)
+        if self.on_select:
+            self.on_select(self.selected_device)
         self._safe_update()
 
     def _update_badge(self):

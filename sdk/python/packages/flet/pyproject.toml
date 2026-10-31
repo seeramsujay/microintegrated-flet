@@ -36,6 +36,9 @@ hardware = [
     "pyserial >=3.5; platform_system != 'Emscripten'",
     "pyserial-asyncio >=0.6; platform_system != 'Emscripten'",
     "esptool >=4.5.0; platform_system != 'Emscripten'",
+    "bleak >=0.22.0; platform_system != 'Emscripten'",
+    "aiomqtt >=2.0.0; platform_system != 'Emscripten'",
+    "websockets >=13.0; platform_system != 'Emscripten'",
 ]
 # Dependencies needed to run integration tests written with `flet.testing`
 # (the `flet test` command / the pytest plugin). Pillow/numpy/scikit-image

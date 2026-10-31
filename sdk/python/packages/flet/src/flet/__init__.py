@@ -7,6 +7,8 @@ from flet.version import flet_version as __version__
 # the full ~270-module package; each name is imported on first access and cached
 # into module globals. The block below exists only for type checkers / IDEs.
 if TYPE_CHECKING:
+    import uflet
+
     from flet.app import (
         AppCallable,
         run,
@@ -325,6 +327,9 @@ if TYPE_CHECKING:
         RadialGradient,
         SweepGradient,
     )
+    from flet.controls.hardware.device_selector import DeviceSelector
+    from flet.controls.hardware.flash_progress import FlashProgress
+    from flet.controls.hardware.serial_console import SerialConsole
     from flet.controls.icon_data import IconData
     from flet.controls.id_counter import IdCounter
     from flet.controls.keys import (
@@ -612,6 +617,11 @@ if TYPE_CHECKING:
         UrlLauncher,
         WebViewConfiguration,
     )
+    from flet.controls.services.usb_serial import (
+        UsbSerial,
+        UsbSerialDataEvent,
+        UsbSerialDeviceEvent,
+    )
     from flet.controls.services.user_accelerometer import (
         UserAccelerometer,
         UserAccelerometerReadingEvent,
@@ -729,35 +739,50 @@ if TYPE_CHECKING:
         DataChannel,
         DataChannelOpenEvent,
     )
-    from flet.pubsub.pubsub_client import PubSubClient
-    from flet.pubsub.pubsub_hub import PubSubHub
-    import uflet
-    from flet.controls.hardware.device_selector import DeviceSelector
-    from flet.controls.hardware.flash_progress import FlashProgress
-    from flet.controls.hardware.serial_console import SerialConsole
-    from flet.controls.services.usb_serial import (
-        UsbSerial,
-        UsbSerialDataEvent,
-        UsbSerialDeviceEvent,
-    )
     from flet.hardware import (
         AsyncSerial,
+        BleDeviceInfo,
+        BleTransport,
         ESP32Flasher,
         FirmwareFlasher,
         FlashProgressUpdate,
+        MqttTransport,
         Parity,
+        RfcommTransport,
         RP2040Flasher,
         SerialPortInfo,
         StopBits,
+        TcpTransport,
+        Transport,
+        TransportError,
+        UdpTransport,
+        UsbHostTransport,
+        WebSocketTransport,
         create_serial_connection,
         detect_uf2_drives,
         flash_firmware,
         list_serial_ports,
+        scan_ble_devices,
+        transport_from_url,
     )
+    from flet.pubsub.pubsub_client import PubSubClient
+    from flet.pubsub.pubsub_hub import PubSubHub
 
 
 __all__ = [
     "AsyncSerial",
+    "BleDeviceInfo",
+    "BleTransport",
+    "MqttTransport",
+    "RfcommTransport",
+    "TcpTransport",
+    "Transport",
+    "TransportError",
+    "UdpTransport",
+    "UsbHostTransport",
+    "WebSocketTransport",
+    "scan_ble_devices",
+    "transport_from_url",
     "uflet",
     "DeviceSelector",
     "ESP32Flasher",
@@ -1317,6 +1342,18 @@ __all__ = [
 # Generated: exported name -> module that defines it.
 _LAZY = {
     "AsyncSerial": "flet.hardware.serial",
+    "BleDeviceInfo": "flet.hardware.bluetooth",
+    "BleTransport": "flet.hardware.bluetooth",
+    "MqttTransport": "flet.hardware.mqtt",
+    "RfcommTransport": "flet.hardware.bluetooth",
+    "TcpTransport": "flet.hardware.network",
+    "Transport": "flet.hardware.transport",
+    "TransportError": "flet.hardware.transport",
+    "UdpTransport": "flet.hardware.network",
+    "UsbHostTransport": "flet.hardware.usb_host",
+    "WebSocketTransport": "flet.hardware.network",
+    "scan_ble_devices": "flet.hardware.bluetooth",
+    "transport_from_url": "flet.hardware.connect",
     "uflet": "uflet",
     "DeviceSelector": "flet.controls.hardware.device_selector",
     "ESP32Flasher": "flet.hardware.flasher",

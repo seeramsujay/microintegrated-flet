@@ -12,6 +12,7 @@ import flet_cli.commands.devices
 import flet_cli.commands.doctor
 import flet_cli.commands.emulators
 import flet_cli.commands.flash
+import flet_cli.commands.monitor
 import flet_cli.commands.pack
 import flet_cli.commands.publish
 import flet_cli.commands.run
@@ -122,6 +123,7 @@ def get_parser() -> argparse.ArgumentParser:
     flet_cli.commands.devices.Command.register_to(sp, "devices")
     flet_cli.commands.doctor.Command.register_to(sp, "doctor")
     flet_cli.commands.flash.Command.register_to(sp, "flash")
+    flet_cli.commands.monitor.Command.register_to(sp, "monitor")
 
     # Register MCP command only if flet-mcp is installed
     try:

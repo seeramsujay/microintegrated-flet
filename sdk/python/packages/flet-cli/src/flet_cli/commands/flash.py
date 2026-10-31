@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -20,6 +21,7 @@ from flet.hardware.flasher import (
     FlashProgressUpdate,
     detect_uf2_drives,
     flash_firmware,
+    sniff_firmware_type,
 )
 from flet.hardware.serial import list_serial_ports
 from flet_cli.commands.base import BaseCommand
@@ -190,12 +192,26 @@ class Command(BaseCommand):
         deps = report.get("dependencies", {})
         for dep, ver in deps.items():
             status = f"[green]{ver}[/green]" if ver else "[red]Not Installed[/red]"
-            notes = (
-                "Required for serial I/O"
-                if "serial" in dep
-                else "Required for ESP32 flash"
-            )
+            notes = {
+                "serial": "Required for serial I/O",
+                "serial_asyncio": "Required for serial I/O",
+                "esptool": "Required for ESP32 flash",
+                "bleak": "Bluetooth LE transport",
+                "aiomqtt": "MQTT transport",
+                "websockets": "WebSocket transport",
+            }.get(dep, "")
             table.add_row(f"Dependency: {dep}", status, notes)
+
+        transports = report.get("transports", {})
+        if transports:
+            table.add_row(
+                "Transports",
+                ", ".join(
+                    f"[green]{name}[/green]" if ok else f"[red]{name}[/red]"
+                    for name, ok in transports.items()
+                ),
+                "Red = unavailable (see warnings)",
+            )
 
         ports = report.get("devices", {}).get("serial_ports", [])
         ports_str = (
@@ -223,7 +239,7 @@ class Command(BaseCommand):
         if warnings:
             console.print("\n[bold yellow]Warnings / Recommendations:[/bold yellow]")
             for w in warnings:
-                console.print(f"  • {w}")
+                console.print(f"  • {escape(w)}")
 
         console.print(
             "\n[bold cyan]Active Support:[/bold cyan] "
@@ -296,16 +312,18 @@ class Command(BaseCommand):
         port = options.port
         file_size_kb = firmware_path.stat().st_size / 1024.0
 
-        # Auto-detect chip if requested
-        if chip == "auto":
-            if firmware_path.suffix.lower() == ".uf2":
-                chip = "rp2040"
-            else:
-                chip = "esp32"
+        # Auto-detect chip family if requested. The exact ESP variant (and its
+        # flash offset) is detected over serial by the flasher.
+        if chip == "auto" and (
+            firmware_path.suffix.lower() == ".uf2"
+            or sniff_firmware_type(firmware_path) == "uf2"
+        ):
+            chip = "rp2040"
+        is_rp2040 = chip == "rp2040"
 
         # Auto-detect port/drive if not provided
         if not port:
-            if chip == "rp2040":
+            if is_rp2040:
                 detected_drives = detect_uf2_drives()
                 if not detected_drives:
                     console.print(
@@ -355,6 +373,9 @@ class Command(BaseCommand):
             )
 
             def _on_progress(update: FlashProgressUpdate) -> None:
+                nonlocal chip
+                if update.chip_name and chip == "auto":
+                    chip = update.chip_name
                 speed_str = (
                     f"{update.speed_kbps:.1f} kB/s" if update.speed_kbps > 0 else "--"
                 )
