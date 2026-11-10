@@ -26,7 +26,8 @@ class FlashProgressUpdate:
     """
 
     status: str
-    """Phase name: 'idle', 'connecting', 'erasing', 'writing', 'verifying', 'complete', 'error'."""
+    """Phase name: 'idle', 'connecting', 'erasing', 'writing',
+    'verifying', 'complete', 'error'."""
 
     percent: float = 0.0
     """Completion progress in the range 0.0 to 1.0."""
@@ -246,10 +247,8 @@ class RP2040Flasher:
                 await asyncio.sleep(0.01)
 
             # Ensure sync to disk
-            try:
+            with contextlib.suppress(Exception):
                 os.fsync(dst.fileno())
-            except Exception:
-                pass
 
         _notify(
             "complete",
@@ -338,7 +337,8 @@ class ESP32Flasher:
         return args
 
     async def detect_chip(self) -> str:
-        """Query the connected device over serial to identify the exact ESP chip model."""
+        """Query the connected device over serial to identify
+        the exact ESP chip model."""
         if not self.port:
             raise ValueError("Serial port must be specified to detect chip.")
 
@@ -480,7 +480,8 @@ class ESP32Flasher:
                         _notify(
                             "writing",
                             pct,
-                            f"Writing firmware at {hex(flash_offset)} ({int(pct * 100)}%)...",
+                            f"Writing firmware at {hex(flash_offset)} "
+                            f"({int(pct * 100)}%)...",
                             speed=speed,
                         )
 

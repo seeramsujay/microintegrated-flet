@@ -20,7 +20,8 @@ __all__ = ["DeviceSelector"]
 @control("Container")
 class DeviceSelector(Container):
     """
-    A specialized hardware dropdown that auto-populates and monitors connected serial ports.
+    A specialized hardware dropdown that auto-populates and monitors
+    connected serial ports.
     """
 
     selected_port: Optional[str] = None
@@ -165,7 +166,12 @@ class DeviceSelector(Container):
                     matched = True
                     break
                 else:
-                    text = f"{port.description or ''} {port.product or ''} {port.manufacturer or ''}".lower()
+                    desc, prod, mfr = (
+                        port.description or "",
+                        port.product or "",
+                        port.manufacturer or "",
+                    )
+                    text = f"{desc} {prod} {mfr}".lower()
                     if c_lower in text:
                         matched = True
                         break

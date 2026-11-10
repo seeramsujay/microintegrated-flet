@@ -1,5 +1,3 @@
-import sys
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -85,12 +83,14 @@ def test_flash_list_drives(capsys, tmp_path):
     options = parser.parse_args(["flash", "--list-drives"])
 
     mock_drives = [tmp_path / "RPI-RP2"]
-    with patch("flet_cli.commands.flash.detect_uf2_drives", return_value=mock_drives):
-        with patch(
+    with (
+        patch("flet_cli.commands.flash.detect_uf2_drives", return_value=mock_drives),
+        patch(
             "flet.hardware.flasher.RP2040Flasher.read_info",
             return_value={"Board-ID": "RPI-RP2"},
-        ):
-            options.handler(options)
+        ),
+    ):
+        options.handler(options)
 
     captured = capsys.readouterr()
     assert "RPI-RP2" in captured.out

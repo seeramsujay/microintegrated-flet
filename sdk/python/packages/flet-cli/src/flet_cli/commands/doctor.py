@@ -46,12 +46,14 @@ class Command(BaseCommand):
             installed_deps = [k for k, v in deps.items() if v]
             if len(installed_deps) == len(deps):
                 console.print(
-                    "μFlet Hardware Suite: [green]Ready[/green] (pyserial, pyserial-asyncio, esptool)"
+                    "μFlet Hardware Suite: [green]Ready[/green] "
+                    "(pyserial, pyserial-asyncio, esptool)"
                 )
             else:
                 missing = [k for k, v in deps.items() if not v]
                 console.print(
-                    f"μFlet Hardware Suite: [yellow]Optional dependencies missing: {', '.join(missing)}[/yellow]"
+                    f"μFlet Hardware Suite: [yellow]Optional dependencies missing: "
+                    f"{', '.join(missing)}[/yellow]"
                 )
             ports = hw_report.get("devices", {}).get("serial_ports", [])
             if ports:
