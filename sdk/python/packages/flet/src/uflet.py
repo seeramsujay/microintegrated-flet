@@ -29,7 +29,7 @@ Usage:
     )
 """
 
-from typing import Any, Dict
+from typing import Any
 
 # Controls are imported directly so `uf.SerialConsole(...)` works without `ft.`
 from flet.controls.hardware.device_selector import DeviceSelector
@@ -115,7 +115,7 @@ __all__ = [
 ]
 
 
-def doctor(verbose: bool = False) -> Dict[str, Any]:
+def doctor(verbose: bool = False) -> dict[str, Any]:
     """
     Run the μFlet Hardware Diagnostics & Health Check.
 
@@ -132,7 +132,7 @@ def doctor(verbose: bool = False) -> Dict[str, Any]:
     import platform
     import sys
 
-    status: Dict[str, Any] = {
+    status: dict[str, Any] = {
         "product": "μFlet",
         "version": __version__,
         "platform": {

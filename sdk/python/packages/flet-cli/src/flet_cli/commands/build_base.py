@@ -726,7 +726,15 @@ class BaseBuildCommand(BaseFlutterCommand):
             action="extend",
             nargs="+",
             default=[],
-            choices=["location", "camera", "microphone", "photo_library", "biometric", "usb_serial", "hardware"],
+            choices=[
+                "location",
+                "camera",
+                "microphone",
+                "photo_library",
+                "biometric",
+                "usb_serial",
+                "hardware",
+            ],
             help="The list of pre-defined cross-platform permissions for iOS, Android "
             "and macOS builds",
         )
@@ -1133,9 +1141,15 @@ class BaseBuildCommand(BaseFlutterCommand):
             or []
         )
         hw_cfg = self.get_pyproject("tool.flet.hardware")
-        if hw_cfg is True or (isinstance(hw_cfg, dict) and hw_cfg.get("enabled", True)):
-            if "usb_serial" not in permissions_to_apply and "hardware" not in permissions_to_apply:
-                permissions_to_apply.append("usb_serial")
+        is_hw_enabled = hw_cfg is True or (
+            isinstance(hw_cfg, dict) and hw_cfg.get("enabled", True)
+        )
+        if (
+            is_hw_enabled
+            and "usb_serial" not in permissions_to_apply
+            and "hardware" not in permissions_to_apply
+        ):
+            permissions_to_apply.append("usb_serial")
 
         # merge values from "--permissions" arg:
         for p in permissions_to_apply:

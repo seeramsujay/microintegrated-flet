@@ -8,7 +8,7 @@ from packaging import version
 from PyInstaller.building.icon import normalize_icon_type
 from PyInstaller.compat import win32api
 from PyInstaller.utils.win32 import versioninfo
-from PyInstaller.utils.win32.icon import IconFile, normalize_icon_type
+from PyInstaller.utils.win32.icon import IconFile
 
 
 def update_flet_view_icon(exe_path, icon_path):
