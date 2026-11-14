@@ -93,21 +93,31 @@ def App():
                 animate=duration,
                 animate_position=duration,
                 animate_rotation=duration,
-                left=random.randrange(0, width)
-                if scattered
-                else parts[i][0] * (size + gap),
-                top=random.randrange(0, height)
-                if scattered
-                else parts[i][1] * (size + gap),
-                bgcolor=all_colors[random.randrange(0, len(all_colors))]
-                if scattered
-                else parts[i][2],
-                width=random.randrange(int(size / 2), int(size * 3))
-                if scattered
-                else size,
-                height=random.randrange(int(size / 2), int(size * 3))
-                if scattered
-                else size,
+                left=(
+                    random.randrange(0, width)
+                    if scattered
+                    else parts[i][0] * (size + gap)
+                ),
+                top=(
+                    random.randrange(0, height)
+                    if scattered
+                    else parts[i][1] * (size + gap)
+                ),
+                bgcolor=(
+                    all_colors[random.randrange(0, len(all_colors))]
+                    if scattered
+                    else parts[i][2]
+                ),
+                width=(
+                    random.randrange(int(size / 2), int(size * 3))
+                    if scattered
+                    else size
+                ),
+                height=(
+                    random.randrange(int(size / 2), int(size * 3))
+                    if scattered
+                    else size
+                ),
                 border_radius=random.randrange(0, int(size / 2)) if scattered else 5,
                 rotate=random.randrange(0, 90) * 2 * pi / 360 if scattered else 0,
             )

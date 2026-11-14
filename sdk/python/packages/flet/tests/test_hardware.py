@@ -274,39 +274,45 @@ async def test_esp32_flasher_cli_mode():
     )
     mock_process.wait = AsyncMock(return_value=0)
 
-    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
-        with tempfile.NamedTemporaryFile(suffix=".bin") as tmp_bin:
-            events = []
-            await flasher.flash(
-                firmware_path=tmp_bin.name,
-                port="/dev/ttyUSB0",
-                chip="esp32",
-                progress_callback=lambda p: events.append(p),
-            )
+    with (
+        patch("asyncio.create_subprocess_exec", return_value=mock_process),
+        tempfile.NamedTemporaryFile(suffix=".bin") as tmp_bin,
+    ):
+        events = []
+        await flasher.flash(
+            firmware_path=tmp_bin.name,
+            port="/dev/ttyUSB0",
+            chip="esp32",
+            progress_callback=lambda p: events.append(p),
+        )
 
-            assert any(e.status == "writing" for e in events)
-            assert any(e.status == "complete" for e in events)
+        assert any(e.status == "writing" for e in events)
+        assert any(e.status == "complete" for e in events)
 
 
 @pytest.mark.asyncio
 async def test_firmware_flasher_router():
     """Test high-level flash_firmware routing based on extension."""
-    with tempfile.NamedTemporaryFile(suffix=".uf2") as uf2_file:
-        with patch.object(RP2040Flasher, "flash", new_callable=AsyncMock) as mock_rp:
-            await flash_firmware(
-                firmware_path=uf2_file.name,
-                port="/media/user/RPI-RP2",
-            )
-            mock_rp.assert_called_once()
+    with (
+        tempfile.NamedTemporaryFile(suffix=".uf2") as uf2_file,
+        patch.object(RP2040Flasher, "flash", new_callable=AsyncMock) as mock_rp,
+    ):
+        await flash_firmware(
+            firmware_path=uf2_file.name,
+            port="/media/user/RPI-RP2",
+        )
+        mock_rp.assert_called_once()
 
-    with tempfile.NamedTemporaryFile(suffix=".bin") as bin_file:
-        with patch.object(ESP32Flasher, "flash", new_callable=AsyncMock) as mock_esp:
-            await flash_firmware(
-                firmware_path=bin_file.name,
-                port="/dev/ttyUSB0",
-                chip="esp32",
-            )
-            mock_esp.assert_called_once()
+    with (
+        tempfile.NamedTemporaryFile(suffix=".bin") as bin_file,
+        patch.object(ESP32Flasher, "flash", new_callable=AsyncMock) as mock_esp,
+    ):
+        await flash_firmware(
+            firmware_path=bin_file.name,
+            port="/dev/ttyUSB0",
+            chip="esp32",
+        )
+        mock_esp.assert_called_once()
 
 
 def test_uflet_module_and_doctor():
@@ -428,11 +434,13 @@ async def test_esptool_global_options_precede_command():
 
 @pytest.mark.asyncio
 async def test_firmware_flasher_uses_chip_offset():
-    with tempfile.NamedTemporaryFile(suffix=".bin") as bin_file:
-        with patch.object(ESP32Flasher, "flash", new_callable=AsyncMock) as mock_esp:
-            await flash_firmware(
-                firmware_path=bin_file.name, port="/dev/ttyUSB0", chip="esp32s3"
-            )
+    with (
+        tempfile.NamedTemporaryFile(suffix=".bin") as bin_file,
+        patch.object(ESP32Flasher, "flash", new_callable=AsyncMock) as mock_esp,
+    ):
+        await flash_firmware(
+            firmware_path=bin_file.name, port="/dev/ttyUSB0", chip="esp32s3"
+        )
         assert mock_esp.await_args.kwargs["offset"] == 0x0
 
         with (

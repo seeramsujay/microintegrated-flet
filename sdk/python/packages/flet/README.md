@@ -73,6 +73,7 @@ Below is a simple "Counter" app, with a text field and two buttons to increment 
 ```python title="counter.py"
 import flet as ft
 
+
 def main(page: ft.Page):
     page.title = "Flet counter example"
     page.vertical_alignment = ft.MainAxisAlignment.CENTER
@@ -95,6 +96,7 @@ def main(page: ft.Page):
             ],
         )
     )
+
 
 ft.run(main)
 ```

@@ -13,9 +13,7 @@ def check_broken_images(build_dir: str) -> list[str]:
     for html_file in sorted(
         glob.glob(f"{build_dir}/docs/**/index.html", recursive=True)
     ):
-        page = (
-            html_file.replace(build_dir + "/", "").replace("/index.html", "")
-        )
+        page = html_file.replace(build_dir + "/", "").replace("/index.html", "")
         content = open(html_file).read()
         for match in img_re.finditer(content):
             src = match.group(1)
@@ -34,10 +32,7 @@ def check_pattern(build_dir: str, pattern: str) -> list[str]:
     ):
         content = open(html_file).read()
         if pattern in content:
-            page = (
-                html_file.replace(build_dir + "/", "")
-                .replace("/index.html", "")
-            )
+            page = html_file.replace(build_dir + "/", "").replace("/index.html", "")
             errors.append(f"  {page}")
     return errors
 
@@ -50,10 +45,7 @@ def check_unresolved_xrefs(build_dir: str) -> list[str]:
     ):
         content = open(html_file).read()
         if xref_re.search(content):
-            page = (
-                html_file.replace(build_dir + "/", "")
-                .replace("/index.html", "")
-            )
+            page = html_file.replace(build_dir + "/", "").replace("/index.html", "")
             errors.append(f"  {page}")
     return errors
 

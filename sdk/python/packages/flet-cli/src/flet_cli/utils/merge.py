@@ -1,4 +1,6 @@
-def merge_dict(a: dict, b: dict, path=[]):
+def merge_dict(a: dict, b: dict, path=None):
+    if path is None:
+        path = []
     """
     Recursively merge dictionary `b` into dictionary `a`.
 

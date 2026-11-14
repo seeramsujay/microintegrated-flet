@@ -30,9 +30,7 @@ console = Console(log_path=False)
 
 
 class Command(BaseCommand):
-    """
-    Flash firmware binaries (.bin or .uf2) to microcontrollers (ESP32 family, RP2040 Pico).
-    """
+    """Flash firmware binaries (.bin / .uf2) to microcontrollers (ESP32 / RP2040)."""
 
     name = "flash"
     description = "Deploy firmware binaries directly to connected microcontrollers."
@@ -43,14 +41,19 @@ class Command(BaseCommand):
             "--firmware",
             dest="firmware",
             type=str,
-            help="Path to the firmware binary (.bin for ESP32, .uf2 for RP2040 / Pico).",
+            help=(
+                "Path to the firmware binary (.bin for ESP32, .uf2 for RP2040 / Pico)."
+            ),
         )
         parser.add_argument(
             "-p",
             "--port",
             dest="port",
             type=str,
-            help="Serial port (e.g. /dev/ttyUSB0, COM3) or mounted bootloader drive directory.",
+            help=(
+                "Serial port (e.g. /dev/ttyUSB0, COM3) or mounted bootloader "
+                "drive directory."
+            ),
         )
         parser.add_argument(
             "-c",
@@ -68,7 +71,10 @@ class Command(BaseCommand):
                 "esp8266",
                 "rp2040",
             ],
-            help="Target microcontroller family (default: auto-detected from binary and device).",
+            help=(
+                "Target microcontroller family "
+                "(default: auto-detected from binary and device)."
+            ),
         )
         parser.add_argument(
             "-b",
@@ -135,7 +141,8 @@ class Command(BaseCommand):
 
         if not options.firmware:
             console.print(
-                "[bold red]Error:[/bold red] Firmware file must be specified with --firmware or -f. "
+                "[bold red]Error:[/bold red] Firmware file must be specified "
+                "with --firmware or -f. "
                 "Run [bold cyan]flet flash --help[/bold cyan] for usage instructions."
             )
             sys.exit(1)
@@ -243,7 +250,8 @@ class Command(BaseCommand):
 
         console.print(
             "\n[bold cyan]Active Support:[/bold cyan] "
-            "Need help with hardware integration? File an issue at [underline]https://github.com/flet-dev/flet/issues[/underline] "
+            "Need help with hardware integration? File an issue at "
+            "[underline]https://github.com/flet-dev/flet/issues[/underline] "
             "or visit [underline]https://flet.dev/docs/uflet[/underline]\n"
         )
 
@@ -328,7 +336,8 @@ class Command(BaseCommand):
                 if not detected_drives:
                     console.print(
                         "[bold red]Error:[/bold red] No RP2040 UF2 drive found. "
-                        "Hold the BOOTSEL button while plugging in the Pico, or specify drive with --port."
+                        "Hold the BOOTSEL button while plugging in the Pico, "
+                        "or specify drive with --port."
                     )
                     sys.exit(1)
                 port = str(detected_drives[0])
@@ -346,7 +355,8 @@ class Command(BaseCommand):
 
         panel_content = (
             f"[bold]Target Chip:[/bold] [magenta]{chip.upper()}[/magenta]\n"
-            f"[bold]Firmware:[/bold] [cyan]{firmware_path.name}[/cyan] ({file_size_kb:.1f} KB)\n"
+            f"[bold]Firmware:[/bold] "
+            f"[cyan]{firmware_path.name}[/cyan] ({file_size_kb:.1f} KB)\n"
             f"[bold]Port / Mount:[/bold] [green]{port}[/green]\n"
             f"[bold]Baud Rate:[/bold] {options.baud}\n"
             f"[bold]Erase Flash:[/bold] {'Yes' if options.erase else 'No'}"
@@ -412,5 +422,6 @@ class Command(BaseCommand):
             )
 
         console.print(
-            f"\n[bold green]Success![/bold green] Firmware flashed to {chip.upper()} on {port}."
+            f"\n[bold green]Success![/bold green] "
+            f"Firmware flashed to {chip.upper()} on {port}."
         )

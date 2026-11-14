@@ -99,10 +99,7 @@ class UsbSerial(Service):
         """
         Transmit data over the USB serial interface.
         """
-        if isinstance(data, str):
-            raw_bytes = data.encode("utf-8")
-        else:
-            raw_bytes = bytes(data)
+        raw_bytes = data.encode("utf-8") if isinstance(data, str) else bytes(data)
 
         # Base64 encode for json transport across platform bridge
         b64_str = base64.b64encode(raw_bytes).decode("ascii")

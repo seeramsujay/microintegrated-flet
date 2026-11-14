@@ -223,7 +223,9 @@ def web(src: Image.Image, name: str, derived: bool) -> Image.Image:
 
     return next(
         a.image
-        for a in render_icons(src, IconOptions(), platform="web", derived=derived).assets
+        for a in render_icons(
+            src, IconOptions(), platform="web", derived=derived
+        ).assets
         if a.relative_path.endswith(name)
     )
 
@@ -262,7 +264,9 @@ def splash_layer(name: str, *, icon_background: str | None = None) -> Image.Imag
     options = SplashOptions(color="#112233", icon_background=icon_background)
     rendered = {
         asset.relative_path: asset.image
-        for asset in render_splash(src, options=options, platform="android", derived=True).assets
+        for asset in render_splash(
+            src, options=options, platform="android", derived=True
+        ).assets
     }
     background = Image.new("RGBA", (TILE, TILE), (17, 34, 51, 255))
 
@@ -346,9 +350,7 @@ def build() -> dict[str, Image.Image]:
         # favicon, which blown up eightfold would look like a blurry result
         # rather than the unmodified one it is.
         "result-unmasked.png": on_checkerboard(web(full_bleed, "Icon-512.png", True)),
-        "result-ios.png": rounded(
-            platform_icon(full_bleed, "ios", "1024x1024", True)
-        ),
+        "result-ios.png": rounded(platform_icon(full_bleed, "ios", "1024x1024", True)),
         "result-macos.png": on_checkerboard(
             platform_icon(full_bleed, "macos", "app_icon_1024", True)
         ),

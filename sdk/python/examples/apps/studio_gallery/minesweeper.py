@@ -126,44 +126,64 @@ def SquareView(square: Square) -> ft.Control:
         bgcolor=(
             ft.Colors.RED_900
             if square.exploded
-            else ft.Colors.GREY_300
-            if square.revealed
-            else ft.Colors.GREY_400
+            else ft.Colors.GREY_300 if square.revealed else ft.Colors.GREY_400
         ),
         alignment=ft.Alignment.CENTER,
         foreground_decoration=ft.BoxDecoration(
             border=BEVEL_RAISED if not square.revealed else None
         ),
         content=ft.Text(
-            "💥"
-            if square.exploded
-            else "💣"
-            if square.revealed and square.mine
-            else "🚩"
-            if square.flagged
-            else str(square.adjacent_mines)
-            if square.revealed and square.adjacent_mines > 0
-            else "",
+            (
+                "💥"
+                if square.exploded
+                else (
+                    "💣"
+                    if square.revealed and square.mine
+                    else (
+                        "🚩"
+                        if square.flagged
+                        else (
+                            str(square.adjacent_mines)
+                            if square.revealed and square.adjacent_mines > 0
+                            else ""
+                        )
+                    )
+                )
+            ),
             size=SQUARE_SIZE * 0.6,
             weight=ft.FontWeight.BOLD,
             color=(
                 ft.Colors.BLUE
                 if square.adjacent_mines == 1
-                else ft.Colors.GREEN
-                if square.adjacent_mines == 2
-                else ft.Colors.RED
-                if square.adjacent_mines == 3
-                else ft.Colors.ORANGE
-                if square.adjacent_mines == 4
-                else ft.Colors.PURPLE
-                if square.adjacent_mines == 5
-                else ft.Colors.BROWN
-                if square.adjacent_mines == 6
-                else ft.Colors.TEAL
-                if square.adjacent_mines == 7
-                else ft.Colors.BLACK
-                if square.adjacent_mines == 8
-                else ft.Colors.BLACK
+                else (
+                    ft.Colors.GREEN
+                    if square.adjacent_mines == 2
+                    else (
+                        ft.Colors.RED
+                        if square.adjacent_mines == 3
+                        else (
+                            ft.Colors.ORANGE
+                            if square.adjacent_mines == 4
+                            else (
+                                ft.Colors.PURPLE
+                                if square.adjacent_mines == 5
+                                else (
+                                    ft.Colors.BROWN
+                                    if square.adjacent_mines == 6
+                                    else (
+                                        ft.Colors.TEAL
+                                        if square.adjacent_mines == 7
+                                        else (
+                                            ft.Colors.BLACK
+                                            if square.adjacent_mines == 8
+                                            else ft.Colors.BLACK
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
             ),
         ),
         left=square.left,
@@ -288,9 +308,11 @@ def App():
                 on_click=lambda e: (
                     set_game(Game()),
                     set_new_game_tapped(False),
-                    ticker_task.cancel()
-                    if ticker_task and not ticker_task.done()
-                    else None,
+                    (
+                        ticker_task.cancel()
+                        if ticker_task and not ticker_task.done()
+                        else None
+                    ),
                 ),
                 width=50,
                 height=50,

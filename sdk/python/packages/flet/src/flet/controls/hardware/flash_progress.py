@@ -29,7 +29,8 @@ class FlashProgress(Container):
     """
 
     status: str = "idle"
-    """Current stage ('idle', 'connecting', 'erasing', 'writing', 'verifying', 'complete', 'error')."""
+    """Current stage ('idle', 'connecting', 'erasing', 'writing',
+    'verifying', 'complete', 'error')."""
 
     percent: float = 0.0
     """Progress value from 0.0 to 1.0."""
