@@ -11,9 +11,9 @@ def main(page: ft.Page):
 
     def on_scroll(e: ft.OnScrollEvent):
         counts[e.event_type] += 1
-        count_labels[
-            e.event_type
-        ].value = f"{e.event_type.name}: {counts[e.event_type]}"
+        count_labels[e.event_type].value = (
+            f"{e.event_type.name}: {counts[e.event_type]}"
+        )
         last.value = (
             f"Last event: {e.event_type.name}, pixels={round(e.pixels, 1)}"
             f"{', direction=' if e.direction else ''}"

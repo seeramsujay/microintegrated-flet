@@ -4,11 +4,11 @@ import flet as ft
 @ft.component
 def Square(value: str, on_click, control_key=None):
     return ft.Button(
-        ft.Icon(ft.Icons.CIRCLE_OUTLINED)
-        if value == "O"
-        else ft.Icon(ft.Icons.CLOSE)
-        if value == "X"
-        else "",
+        (
+            ft.Icon(ft.Icons.CIRCLE_OUTLINED)
+            if value == "O"
+            else ft.Icon(ft.Icons.CLOSE) if value == "X" else ""
+        ),
         key=control_key,
         width=50,
         height=50,

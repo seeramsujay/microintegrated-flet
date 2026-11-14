@@ -77,9 +77,11 @@ def App():
                         width=50,
                         height=50,
                         bgcolor=target.bgcolor,
-                        border=ft.Border.all(2, ft.Colors.BLACK_45)
-                        if target.is_drag_over
-                        else None,
+                        border=(
+                            ft.Border.all(2, ft.Colors.BLACK_45)
+                            if target.is_drag_over
+                            else None
+                        ),
                         border_radius=5,
                     ),
                 ),

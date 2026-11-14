@@ -159,9 +159,11 @@ def GroupView(group: Group, move_group, **kwargs):
                         on_accept=on_group_accept,
                         on_leave=lambda: set_is_group_over(False),
                         content=ft.Container(
-                            border=ft.Border.all(2, ft.Colors.BLACK_12)
-                            if not is_group_over
-                            else ft.Border.all(2, ft.Colors.BLACK_38),
+                            border=(
+                                ft.Border.all(2, ft.Colors.BLACK_12)
+                                if not is_group_over
+                                else ft.Border.all(2, ft.Colors.BLACK_38)
+                            ),
                             border_radius=ft.BorderRadius.all(15),
                             bgcolor=group.color,
                             padding=ft.Padding.all(20),

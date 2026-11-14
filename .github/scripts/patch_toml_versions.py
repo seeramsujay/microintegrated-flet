@@ -19,7 +19,6 @@ import re
 
 import tomlkit
 
-
 INTERNAL_DEPS = {
     "flet",
     "flet-cli",

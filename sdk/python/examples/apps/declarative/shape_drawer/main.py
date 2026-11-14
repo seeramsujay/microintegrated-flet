@@ -33,14 +33,16 @@ class State:
 def PolygonView(polygon: Polygon) -> canvas.Path:
     return canvas.Path(
         elements=[
-            canvas.Path.MoveTo(
-                point.x,
-                point.y,
-            )
-            if i == 0
-            else canvas.Path.LineTo(
-                point.x,
-                point.y,
+            (
+                canvas.Path.MoveTo(
+                    point.x,
+                    point.y,
+                )
+                if i == 0
+                else canvas.Path.LineTo(
+                    point.x,
+                    point.y,
+                )
             )
             for i, point in enumerate(polygon.points)
         ]

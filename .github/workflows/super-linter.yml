@@ -2,9 +2,9 @@ name: Lint Code Base
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 permissions:
   contents: read
@@ -12,7 +12,7 @@ permissions:
   statuses: write
 
 jobs:
-  build:
+  lint:
     name: Lint Code Base
     runs-on: ubuntu-latest
 
@@ -28,10 +28,5 @@ jobs:
           VALIDATE_ALL_CODEBASE: true
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VALIDATE_PYTHON_BLACK: false
           VALIDATE_PYTHON_RUFF: true
-          VALIDATE_MARKDOWN: false
-          VALIDATE_NATURAL_LANGUAGE: false
-          VALIDATE_XML: false
-          VALIDATE_JSON: false
-          VALIDATE_BASH: true
+          VALIDATE_YAML: true

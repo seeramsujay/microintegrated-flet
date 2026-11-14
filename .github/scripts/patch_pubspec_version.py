@@ -40,7 +40,9 @@ def main() -> None:
         description="Patch pubspec version and/or selected dependencies."
     )
     parser.add_argument("pubspec", help="Path to pubspec.yaml")
-    parser.add_argument("version", nargs="?", default=None, help="Version string to apply")
+    parser.add_argument(
+        "version", nargs="?", default=None, help="Version string to apply"
+    )
     parser.add_argument(
         "--dependencies-only",
         action="store_true",

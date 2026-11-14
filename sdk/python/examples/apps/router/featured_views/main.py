@@ -102,18 +102,22 @@ def SettingsLayout():
                     ft.Button(
                         "General",
                         style=ft.ButtonStyle(
-                            bgcolor=ft.Colors.PRIMARY_CONTAINER
-                            if ft.is_route_active("/settings/general", exact=True)
-                            else None,
+                            bgcolor=(
+                                ft.Colors.PRIMARY_CONTAINER
+                                if ft.is_route_active("/settings/general", exact=True)
+                                else None
+                            ),
                         ),
                         on_click=lambda: ft.context.page.navigate("/settings/general"),
                     ),
                     ft.Button(
                         "Account",
                         style=ft.ButtonStyle(
-                            bgcolor=ft.Colors.PRIMARY_CONTAINER
-                            if ft.is_route_active("/settings/account", exact=True)
-                            else None,
+                            bgcolor=(
+                                ft.Colors.PRIMARY_CONTAINER
+                                if ft.is_route_active("/settings/account", exact=True)
+                                else None
+                            ),
                         ),
                         on_click=lambda: ft.context.page.navigate("/settings/account"),
                     ),

@@ -12,9 +12,9 @@ def main(page: ft.Page):
     def on_scroll(e: ft.OnScrollEvent):
         if e.event_type == ft.ScrollType.USER and e.direction is not None:
             counts[e.direction] += 1
-            count_labels[
-                e.direction
-            ].value = f"{e.direction.name}: {counts[e.direction]}"
+            count_labels[e.direction].value = (
+                f"{e.direction.name}: {counts[e.direction]}"
+            )
             last.value = f"Last USER direction: {e.direction.name}"
             for label in count_labels.values():
                 label.update()
