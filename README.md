@@ -1,4 +1,21 @@
 <p align="center">
+  <img src="assets/logo.svg" alt="microintegrated-flet Logo" width="120" height="120" />
+</p>
+
+<h1 align="center">microintegrated-flet</h1>
+
+<p align="center">
+  <em>Build realtime web, mobile and desktop apps in Python only. No frontend experience required.</em>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Status-Maintained-success?style=flat-square" alt="Status" />
+  <img src="https://img.shields.io/badge/License-Protected-blue?style=flat-square" alt="License" />
+</p>
+
+---
+
+<p align="center">
   <a href="https://flet.dev"><picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flet-dev/flet/refs/heads/main/media/logo/flet-logo-dark.svg">
     <img src="https://raw.githubusercontent.com/flet-dev/flet/refs/heads/main/media/logo/flet-logo.svg" height="150" alt="Flet logo">
